@@ -1,49 +1,43 @@
+'use strict';
+
 /**
  * mailer.js — BookStore UBT email system
  *
- * DEV MODE (SMTP not configured):
- *   Verification and reset URLs are printed to the terminal so the full
- *   auth flow can be tested without real email credentials.
- *
- * PRODUCTION MODE (SMTP configured in .env):
- *   Emails are delivered via Nodemailer to the recipient's inbox.
+ * Two modes:
+ *  DEV  — SMTP not configured → URLs printed to terminal, treated as success
+ *  PROD — SMTP configured     → real email sent; throws if delivery fails
  */
-
-'use strict';
 
 const nodemailer = require('nodemailer');
 
 // ─── Credential check ─────────────────────────────────────────────────────────
 
-const PLACEHOLDERS = new Set([
-  'your-email@outlook.com',
+const PLACEHOLDER_PATTERNS = [
+  'your-email@',
+  'your_email@',
+  'your-app-password',
+  'your_app_password',
   'your-password',
-  'your_email@outlook.com',
   'your_password',
   'change-me',
-  '',
-]);
+];
 
-function smtpReady() {
+function smtpConfigured() {
   const u = (process.env.SMTP_USER || '').trim().toLowerCase();
   const p = (process.env.SMTP_PASS || '').trim();
-  return u.length > 0 && p.length > 0
-    && !PLACEHOLDERS.has(u)
-    && !PLACEHOLDERS.has(p);
+  if (!u || !p) return false;
+  if (PLACEHOLDER_PATTERNS.some(pat => u.includes(pat) || p.includes(pat))) return false;
+  return true;
 }
 
 // ─── Transporter factory ──────────────────────────────────────────────────────
-// A fresh transport is created per-send so env-var changes take effect without
-// a server restart (useful when the user fills in credentials and saves .env).
 
 function createTransport() {
-  const host = process.env.SMTP_HOST || 'smtp.gmail.com';
   const port = Number(process.env.SMTP_PORT) || 587;
-
   return nodemailer.createTransport({
-    host,
+    host:              process.env.SMTP_HOST || 'smtp.gmail.com',
     port,
-    secure: port === 465,          // true only for port 465
+    secure:            port === 465,
     auth: {
       user: process.env.SMTP_USER,
       pass: process.env.SMTP_PASS,
@@ -58,65 +52,69 @@ function createTransport() {
 // ─── SMTP startup verification ────────────────────────────────────────────────
 
 async function verifySmtp() {
-  if (!smtpReady()) {
-    console.log('[Mailer] ⚠  SMTP not configured — running in DEV MODE');
-    console.log('[Mailer]    Verification and reset links will be printed here instead.');
-    console.log('[Mailer]    To enable real emails: fill SMTP_USER and SMTP_PASS in .env');
+  if (!smtpConfigured()) {
+    console.log('[Mailer] ⚠  SMTP not configured — DEV MODE active');
+    console.log('[Mailer]    Links will be printed to this terminal instead of emailed.');
+    console.log('[Mailer]    Fill SMTP_USER + SMTP_PASS in .env to send real emails.');
     return false;
   }
 
   try {
     await createTransport().verify();
-    console.log(`[Mailer] ✓  SMTP connected  →  ${process.env.SMTP_HOST}:${process.env.SMTP_PORT}`);
+    console.log(`[Mailer] ✓  SMTP OK — ${process.env.SMTP_HOST}:${process.env.SMTP_PORT}`);
     console.log(`[Mailer]    Sending as: ${process.env.SMTP_USER}`);
     return true;
   } catch (err) {
-    console.error(`[Mailer] ✗  SMTP connection failed: ${err.message}`);
-
-    if (/535|534|auth|credential/i.test(err.message)) {
-      console.error('[Mailer]    FIX: Wrong username or password.');
-      console.error('[Mailer]    If MFA is enabled you need an App Password:');
-      console.error('[Mailer]      Gmail   → myaccount.google.com/security → App passwords');
-      console.error('[Mailer]      Outlook → account.microsoft.com/security → App passwords');
+    console.error(`[Mailer] ✗  SMTP FAILED: ${err.message}`);
+    if (/535|534|auth|credential|BadCredentials/i.test(err.message)) {
+      console.error('[Mailer]    → Wrong email or password.');
+      console.error('[Mailer]      Gmail:   myaccount.google.com/apppasswords');
+      console.error('[Mailer]      Outlook: account.microsoft.com/security → App passwords');
     } else if (/ECONNREFUSED|ETIMEDOUT|ENOTFOUND/i.test(err.message)) {
-      console.error('[Mailer]    FIX: Cannot reach SMTP server. Check SMTP_HOST and SMTP_PORT.');
+      console.error('[Mailer]    → Cannot reach SMTP server. Check SMTP_HOST / SMTP_PORT.');
     }
-
-    console.log('[Mailer]    Falling back to DEV MODE (links printed to console).');
+    console.error('[Mailer]    Emails will NOT be delivered. Fix credentials and restart.');
     return false;
   }
 }
 
-// ─── Core send ────────────────────────────────────────────────────────────────
+// ─── Core send — THROWS on failure ───────────────────────────────────────────
+// Callers must try/catch this. In DEV MODE it resolves silently (no throw).
 
-async function sendMail(to, subject, html) {
-  if (!smtpReady()) return false;   // dev-mode callers handle logging themselves
+async function send(to, subject, html) {
+  if (!smtpConfigured()) {
+    // DEV MODE: email not sent — callers print the link separately
+    return;
+  }
 
+  console.log(`[Mailer] Sending "${subject}" → ${to} …`);
+
+  let info;
   try {
-    const info = await createTransport().sendMail({
+    info = await createTransport().sendMail({
       from: `"BookStore UBT" <${process.env.SMTP_USER}>`,
       to,
       subject,
       html,
     });
-    console.log(`[Mailer] ✓  Sent  → ${to}  (${info.messageId})`);
-    return true;
   } catch (err) {
-    console.error(`[Mailer] ✗  Failed → ${to}: ${err.message}`);
-    return false;
+    console.error(`[Mailer] ✗  SMTP error sending to ${to}: ${err.message}`);
+    throw new Error(`Email delivery failed: ${err.message}`);
   }
+
+  console.log(`[Mailer] ✓  Delivered to ${to}  [${info.messageId}]`);
 }
 
 // ─── Dev-mode console printer ─────────────────────────────────────────────────
 
-function devLog(label, to, url) {
-  const LINE = '═'.repeat(70);
-  console.log('\n' + LINE);
+function devPrint(label, to, url) {
+  const L = '═'.repeat(70);
+  console.log('\n' + L);
   console.log(`  [DEV EMAIL] ${label}`);
   console.log(`  To:  ${to}`);
   console.log(`  URL: ${url}`);
-  console.log(`  → Open the URL above in your browser to complete the action.`);
-  console.log(LINE + '\n');
+  console.log('  → Open this URL in your browser to complete the action.');
+  console.log(L + '\n');
 }
 
 // ─── HTML helpers ─────────────────────────────────────────────────────────────
@@ -136,17 +134,15 @@ const FTR = `
   <td style="background:#0f172a;border-radius:0 0 20px 20px;
              padding:22px 36px;text-align:center;">
     <p style="color:#475569;font-size:12px;margin:0 0 5px;">
-      &copy; ${YEAR} BookStore &mdash; UBT University. All rights reserved.
+      &copy; ${YEAR} BookStore &mdash; UBT University.
     </p>
     <p style="color:#334155;font-size:11px;margin:0;">Developed by ${CREDITS}</p>
   </td>`;
 
 const wrap = body => `<!DOCTYPE html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8"/>
-  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-</head>
+<head><meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/></head>
 <body style="margin:0;padding:0;background:#f1f5f9;
              font-family:'Segoe UI',Tahoma,Arial,sans-serif;">
   <table width="100%" cellpadding="0" cellspacing="0"
@@ -160,36 +156,29 @@ const wrap = body => `<!DOCTYPE html>
       </table>
     </td></tr>
   </table>
-</body>
-</html>`;
+</body></html>`;
 
 const btn = (href, label, color = '#1d4ed8') =>
-  `<a href="${href}"
-    style="display:inline-block;background:${color};color:#fff;
-           text-decoration:none;font-size:15px;font-weight:700;
-           padding:14px 36px;border-radius:12px;letter-spacing:0.02em;">
-    ${label}
-  </a>`;
+  `<a href="${href}" style="display:inline-block;background:${color};color:#fff;
+    text-decoration:none;font-size:15px;font-weight:700;padding:14px 36px;
+    border-radius:12px;letter-spacing:0.02em;">${label}</a>`;
 
 const badge = (icon, text, bg = '#dbeafe', color = '#1e40af') =>
-  `<div style="display:inline-block;background:${bg};color:${color};
-    font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;
+  `<div style="display:inline-block;background:${bg};color:${color};font-size:12px;
+    font-weight:700;text-transform:uppercase;letter-spacing:0.06em;
     padding:6px 14px;border-radius:100px;margin-bottom:20px;">
-    ${icon}&nbsp;${text}
-  </div>`;
+    ${icon}&nbsp;${text}</div>`;
 
 const notice = (html, bg = '#eff6ff', border = '#bfdbfe', color = '#1e40af') =>
   `<table width="100%" cellpadding="0" cellspacing="0"
-    style="background:${bg};border:1.5px solid ${border};
-           border-radius:14px;margin-top:24px;">
-    <tr><td style="padding:18px 22px;font-size:13px;
-                   color:${color};line-height:1.7;">${html}</td></tr>
+    style="background:${bg};border:1.5px solid ${border};border-radius:14px;margin-top:24px;">
+    <tr><td style="padding:18px 22px;font-size:13px;color:${color};line-height:1.7;">${html}</td></tr>
   </table>`;
 
 function formatNow() {
   return new Date().toLocaleString('en-GB', {
-    weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
-    hour: '2-digit', minute: '2-digit', timeZoneName: 'short',
+    weekday:'long', year:'numeric', month:'long', day:'numeric',
+    hour:'2-digit', minute:'2-digit', timeZoneName:'short',
   });
 }
 
@@ -214,7 +203,7 @@ function buildVerificationEmail(user, url) {
     <p style="color:#3b82f6;font-size:11px;text-align:center;
               word-break:break-all;margin:0 0 24px;">${url}</p>
     ${notice('&#x26A0;&#xFE0F;&nbsp;If you did not create a BookStore account, ignore this email.',
-             '#fef9c3', '#fde047', '#713f12')}
+             '#fef9c3','#fde047','#713f12')}
   `);
 }
 
@@ -227,7 +216,7 @@ function buildPasswordResetEmail(user, url) {
     <p style="color:#64748b;font-size:14px;line-height:1.7;margin:0 0 28px;">
       Hi <strong style="color:#0f172a;">${user.emri} ${user.mbiemri}</strong>,<br/>
       We received a password-reset request for <strong>${user.email}</strong>.
-      Click below to set a new password. The link expires in <strong>1 hour</strong>.
+      This link expires in <strong>1 hour</strong>.
     </p>
     <div style="text-align:center;margin:32px 0;">
       ${btn(url, '&#x1F510;&nbsp;Reset My Password', '#dc2626')}
@@ -237,8 +226,8 @@ function buildPasswordResetEmail(user, url) {
     </p>
     <p style="color:#3b82f6;font-size:11px;text-align:center;
               word-break:break-all;margin:0 0 24px;">${url}</p>
-    ${notice('&#x26A0;&#xFE0F;&nbsp;<strong>Did not request this?</strong> Contact your UBT IT administrator immediately.',
-             '#fef2f2', '#fecaca', '#991b1b')}
+    ${notice('&#x26A0;&#xFE0F;&nbsp;<strong>Did not request this?</strong> Contact UBT IT support immediately.',
+             '#fef2f2','#fecaca','#991b1b')}
   `);
 }
 
@@ -268,55 +257,58 @@ function buildLoginEmail(user, loginTime) {
       a successful login was recorded on your BookStore account.
     </p>
     <table width="100%" cellpadding="0" cellspacing="0"
-      style="background:#f8fafc;border:1.5px solid #e2e8f0;
-             border-radius:14px;padding:6px 20px;margin-bottom:24px;">
+      style="background:#f8fafc;border:1.5px solid #e2e8f0;border-radius:14px;
+             padding:6px 20px;margin-bottom:24px;">
       <tr><td>
         <table width="100%" cellpadding="0" cellspacing="0">${rows}</table>
       </td></tr>
     </table>
     ${notice('&#x26A0;&#xFE0F;&nbsp;<strong>Not you?</strong> Change your password immediately and contact UBT IT support.',
-             '#fef2f2', '#fecaca', '#991b1b')}
+             '#fef2f2','#fecaca','#991b1b')}
   `);
 }
 
 // ─── Public API ───────────────────────────────────────────────────────────────
+// Each function THROWS if real SMTP is configured but delivery fails.
+// In DEV MODE (no SMTP), they log the URL and resolve successfully.
 
 async function sendVerificationEmail(user, token) {
-  const base = process.env.FRONTEND_URL || 'http://localhost:5173';
-  const url  = `${base}/verify-email/${token}`;
+  const url = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/verify-email/${token}`;
 
-  if (!smtpReady()) {
-    devLog('VERIFICATION EMAIL', user.email, url);
-    return;
+  if (!smtpConfigured()) {
+    devPrint('VERIFICATION EMAIL', user.email, url);
+    return { delivered: false, devMode: true };
   }
-  await sendMail(user.email, 'Verify your UBT BookStore email', buildVerificationEmail(user, url));
+
+  await send(user.email, 'Verify your UBT BookStore email', buildVerificationEmail(user, url));
+  return { delivered: true, devMode: false };
 }
 
 async function sendPasswordResetEmail(user, token) {
-  const base = process.env.FRONTEND_URL || 'http://localhost:5173';
-  const url  = `${base}/reset-password/${token}`;
+  const url = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/reset-password/${token}`;
 
-  if (!smtpReady()) {
-    devLog('PASSWORD RESET EMAIL', user.email, url);
-    return;
+  if (!smtpConfigured()) {
+    devPrint('PASSWORD RESET EMAIL', user.email, url);
+    return { delivered: false, devMode: true };
   }
-  await sendMail(user.email, 'Reset your BookStore password', buildPasswordResetEmail(user, url));
+
+  await send(user.email, 'Reset your BookStore password', buildPasswordResetEmail(user, url));
+  return { delivered: true, devMode: false };
 }
 
 async function sendLoginNotification(user) {
-  if (!smtpReady()) {
-    console.log(`[Mailer] DEV — Login notification for ${user.email} (SMTP not configured, skipped)`);
+  if (!smtpConfigured()) {
+    console.log(`[Mailer] DEV — login notification skipped for ${user.email}`);
     return;
   }
-  await sendMail(
-    user.email,
-    'New Login Detected — BookStore UBT',
-    buildLoginEmail(user, formatNow())
-  );
+  // Login notification is fire-and-forget — failure must not affect login response.
+  // Caller handles the .catch().
+  await send(user.email, 'New Login — BookStore UBT', buildLoginEmail(user, formatNow()));
 }
 
 module.exports = {
   verifySmtp,
+  smtpConfigured,
   sendVerificationEmail,
   sendPasswordResetEmail,
   sendLoginNotification,

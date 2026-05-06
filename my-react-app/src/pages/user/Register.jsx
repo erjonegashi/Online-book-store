@@ -13,48 +13,85 @@ function pwStrength(pw) {
   return { level: 2, label: 'Fair', color: 'bg-yellow-400' };
 }
 
-function WelcomeScreen({ email, name, onContinue }) {
+function WelcomeScreen({ email, name, emailDelivered, emailDevMode, onContinue }) {
+  // emailDelivered = true  → real email sent to inbox
+  // emailDevMode   = true  → dev mode, URL printed to terminal
+  // both false             → SMTP configured but delivery failed
+
+  const smtpFailed = !emailDelivered && !emailDevMode;
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-950 to-slate-900 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         <div className="bg-white rounded-2xl shadow-2xl p-10 text-center">
-          <div className="w-20 h-20 bg-yellow-100 rounded-full flex items-center justify-center text-4xl mx-auto mb-5">
-            📧
+
+          {/* Icon */}
+          <div className={`w-20 h-20 rounded-full flex items-center justify-center text-4xl mx-auto mb-5 ${
+            smtpFailed ? 'bg-red-100' : emailDelivered ? 'bg-green-100' : 'bg-yellow-100'
+          }`}>
+            {smtpFailed ? '⚠️' : '📧'}
           </div>
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">Check Your Inbox!</h1>
+
+          <h1 className="text-2xl font-bold text-gray-900 mb-2">
+            {smtpFailed ? 'Account Created' : emailDelivered ? 'Check Your Inbox!' : 'Check the Terminal'}
+          </h1>
+
           <p className="text-gray-500 text-sm mb-1">
-            Hi <strong className="text-gray-700">{name}</strong>, your account is almost ready.
+            Hi <strong className="text-gray-700">{name}</strong>, your account has been created.
           </p>
           <p className="text-gray-400 text-xs mb-6">
             You must verify your email before you can sign in.
           </p>
 
-          {/* Verification notice */}
-          <div className="bg-blue-50 border border-blue-100 rounded-2xl p-5 mb-7 text-left">
-            <div className="flex items-center gap-3 mb-3">
-              <div className="w-9 h-9 bg-blue-600 rounded-full flex items-center justify-center shrink-0">
-                <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                    d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                </svg>
+          {/* Status card */}
+          {emailDelivered && (
+            <div className="bg-blue-50 border border-blue-100 rounded-2xl p-5 mb-5 text-left">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="w-9 h-9 bg-blue-600 rounded-full flex items-center justify-center shrink-0">
+                  <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                      d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                  </svg>
+                </div>
+                <div>
+                  <p className="text-sm font-bold text-blue-900">Verification Email Sent</p>
+                  <p className="text-xs text-blue-600">{email}</p>
+                </div>
               </div>
-              <div>
-                <p className="text-sm font-bold text-blue-900">Verification Email Sent</p>
-                <p className="text-xs text-blue-600">{email}</p>
-              </div>
+              <p className="text-xs text-blue-700 leading-relaxed">
+                Open your inbox, find the BookStore email, and click the verification link.
+              </p>
             </div>
-            <p className="text-xs text-blue-700 leading-relaxed">
-              We sent a verification link to your <strong>Outlook</strong> inbox.
-              Click the link in that email to activate your account, then sign in here.
-            </p>
-          </div>
+          )}
 
-          <div className="p-3.5 bg-orange-50 border border-orange-100 rounded-xl text-left mb-7">
-            <p className="text-xs text-orange-700 leading-relaxed">
-              <strong>📬 Can't find the email?</strong> Check your Spam or Junk folder.
-              The verification link expires after <strong>24 hours</strong>.
-            </p>
-          </div>
+          {emailDevMode && (
+            <div className="bg-yellow-50 border border-yellow-200 rounded-2xl p-5 mb-5 text-left">
+              <p className="text-sm font-bold text-yellow-800 mb-1">DEV MODE — No email sent</p>
+              <p className="text-xs text-yellow-700 leading-relaxed">
+                The verification link was printed to the <strong>backend terminal</strong>.
+                Copy it from there and open it in your browser to activate your account.
+              </p>
+            </div>
+          )}
+
+          {smtpFailed && (
+            <div className="bg-red-50 border border-red-200 rounded-2xl p-5 mb-5 text-left">
+              <p className="text-sm font-bold text-red-800 mb-1">Email delivery failed</p>
+              <p className="text-xs text-red-700 leading-relaxed">
+                Your account was created but we couldn't send the verification email.
+                Check the backend terminal for the SMTP error, then use
+                <strong> "Resend Verification"</strong> on the login page once SMTP is fixed.
+              </p>
+            </div>
+          )}
+
+          {emailDelivered && (
+            <div className="p-3.5 bg-orange-50 border border-orange-100 rounded-xl text-left mb-5">
+              <p className="text-xs text-orange-700 leading-relaxed">
+                <strong>📬 Can't find the email?</strong> Check your Spam or Junk folder.
+              </p>
+            </div>
+          )}
 
           <button onClick={onContinue}
             className="w-full py-3.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl transition-colors shadow-sm">
@@ -114,8 +151,13 @@ export default function Register() {
     setLoading(true);
     try {
       const { confirmPassword, ...payload } = form;
-      await userApi.post('/auth/register', payload);
-      setWelcome({ email: form.email, name: form.emri });
+      const { data } = await userApi.post('/auth/register', payload);
+      setWelcome({
+        email:          form.email,
+        name:           form.emri,
+        emailDelivered: data.emailDelivered  ?? false,
+        emailDevMode:   data.emailDevMode    ?? false,
+      });
     } catch (err) {
       const msg = err.response?.data?.error || '';
       if (err.response?.status === 409 || msg.toLowerCase().includes('ekziston')) {
@@ -135,6 +177,8 @@ export default function Register() {
       <WelcomeScreen
         email={welcome.email}
         name={welcome.name}
+        emailDelivered={welcome.emailDelivered}
+        emailDevMode={welcome.emailDevMode}
         onContinue={() => navigate('/login')}
       />
     );
