@@ -1,3 +1,6 @@
+'use strict';
+
+// Load .env FIRST — before any other require that reads process.env
 require('dotenv').config();
 
 const express = require('express');
@@ -5,9 +8,16 @@ const cors    = require('cors');
 const path    = require('path');
 
 const app = express();
-app.use(cors());
+
+app.use(cors({ origin: '*' }));
 app.use(express.json());
+app.use(express.urlencoded({ extended: false }));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
+// ── Health check (use this to verify the backend is alive) ────────────────────
+app.get('/api/health', (_req, res) => {
+  res.json({ status: 'ok', time: new Date().toISOString() });
+});
 
 // ── Routes ────────────────────────────────────────────────────────────────────
 app.use('/api/auth',            require('./routes/auth'));
@@ -27,50 +37,68 @@ app.use('/api/upload',          require('./routes/upload'));
 app.use('/api/stats',           require('./routes/stats'));
 app.use('/api/user',            require('./routes/user'));
 
-app.get('/', (_req, res) => res.json({ status: 'ok', message: 'Bookstore API running' }));
+app.get('/', (_req, res) => res.json({ status: 'ok', message: 'BookStore API running' }));
 
-// ── DB migration ──────────────────────────────────────────────────────────────
+// Generic 404
+app.use((_req, res) => res.status(404).json({ error: 'Route not found' }));
+
+// ── Database migration ────────────────────────────────────────────────────────
 
 async function runMigrations() {
   const db = require('./config/db');
-  const columns = [
+
+  // Add columns one-by-one; ignore ER_DUP_FIELDNAME if already present
+  const alterations = [
     'ALTER TABLE Klientet ADD COLUMN email_verified      TINYINT(1)   NOT NULL DEFAULT 0',
     'ALTER TABLE Klientet ADD COLUMN verification_token  VARCHAR(255) DEFAULT NULL',
     'ALTER TABLE Klientet ADD COLUMN reset_token         VARCHAR(255) DEFAULT NULL',
     'ALTER TABLE Klientet ADD COLUMN reset_token_expires DATETIME     DEFAULT NULL',
   ];
 
-  for (const sql of columns) {
-    try { await db.query(sql); }
-    catch (e) { /* ER_DUP_FIELDNAME = column already exists, safe to ignore */ }
+  for (const sql of alterations) {
+    try {
+      await db.query(sql);
+    } catch (e) {
+      if (e.code !== 'ER_DUP_FIELDNAME') throw e;  // re-throw unexpected errors
+    }
   }
 
-  // Accounts created before email verification was added are treated as verified
+  // Accounts that existed before verification was introduced → mark as verified
   await db.query(
-    'UPDATE Klientet SET email_verified = 1 WHERE email_verified = 0 AND verification_token IS NULL'
+    `UPDATE Klientet
+        SET email_verified = 1
+      WHERE email_verified = 0
+        AND verification_token IS NULL`
   );
-  console.log('[DB]     ✓  Migrations applied');
 }
 
 // ── Startup ───────────────────────────────────────────────────────────────────
 
-const PORT = process.env.PORT || 5000;
+const PORT = Number(process.env.PORT) || 5000;
 
 app.listen(PORT, async () => {
-  console.log('');
-  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-  console.log(`  BookStore API  →  http://localhost:${PORT}`);
-  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+  const LINE = '─'.repeat(56);
+  console.log('\n' + LINE);
+  console.log(`  BookStore API   →   http://localhost:${PORT}`);
+  console.log(`  Health check    →   http://localhost:${PORT}/api/health`);
+  console.log(LINE);
 
-  // DB migration
-  await runMigrations().catch(err => {
-    console.error('[DB]     ✗  Migration error:', err.message);
-  });
+  // 1. DB migration
+  try {
+    await runMigrations();
+    console.log('[DB]     ✓  Migrations OK');
+  } catch (err) {
+    console.error('[DB]     ✗  Migration FAILED:', err.message);
+    console.error('[DB]        Check your DB credentials in .env');
+  }
 
-  // SMTP check
+  // 2. SMTP check
   const { verifySmtp } = require('./utils/mailer');
   await verifySmtp();
 
-  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-  console.log('');
+  console.log(LINE + '\n');
 });
+
+// ── Prevent silent crashes ────────────────────────────────────────────────────
+process.on('uncaughtException',  err => console.error('[CRASH] uncaughtException:', err));
+process.on('unhandledRejection', err => console.error('[CRASH] unhandledRejection:', err));
