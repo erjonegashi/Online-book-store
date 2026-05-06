@@ -44,7 +44,8 @@ router.post('/register', async (req, res) => {
        verificationToken]
     );
 
-    sendVerificationEmail({ emri, mbiemri, email }, verificationToken);
+    sendVerificationEmail({ emri, mbiemri, email }, verificationToken)
+      .catch(err => console.error('[Auth] register verification email error:', err.message));
 
     const token = jwt.sign({ id: result.insertId, email, emri, mbiemri }, JWT_SECRET(), JWT_OPTS);
     res.status(201).json({
@@ -97,7 +98,8 @@ router.post('/resend-verification', async (req, res) => {
       'UPDATE Klientet SET verification_token = ? WHERE klient_id = ?',
       [newToken, user.klient_id]
     );
-    sendVerificationEmail({ emri: user.emri, mbiemri: user.mbiemri, email: user.email }, newToken);
+    sendVerificationEmail({ emri: user.emri, mbiemri: user.mbiemri, email: user.email }, newToken)
+      .catch(err => console.error('[Auth] resend verification email error:', err.message));
     res.json({ message: 'A new verification email has been sent to your inbox.' });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -128,7 +130,8 @@ router.post('/login', async (req, res) => {
     );
 
     if (isUBTEmail(user.email))
-      sendLoginNotification({ emri: user.emri, mbiemri: user.mbiemri, email: user.email });
+      sendLoginNotification({ emri: user.emri, mbiemri: user.mbiemri, email: user.email })
+        .catch(err => console.error('[Auth] login notification email error:', err.message));
 
     res.json({
       token,
@@ -156,7 +159,9 @@ router.post('/forgot-password', async (req, res) => {
       'UPDATE Klientet SET reset_token = ?, reset_token_expires = ? WHERE klient_id = ?',
       [resetToken, expires, user.klient_id]
     );
-    sendPasswordResetEmail({ emri: user.emri, mbiemri: user.mbiemri, email: user.email }, resetToken);
+    // fire-and-forget — never block the HTTP response for SMTP
+    sendPasswordResetEmail({ emri: user.emri, mbiemri: user.mbiemri, email: user.email }, resetToken)
+      .catch(err => console.error('[Auth] forgot-password email error:', err.message));
     res.json({ message: 'If this email is registered, a reset link has been sent.' });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
