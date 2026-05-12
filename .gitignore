@@ -1,0 +1,76 @@
+# =============================================
+# NODE MODULES — never commit these
+# =============================================
+node_modules/
+
+# =============================================
+# ENVIRONMENT VARIABLES — contain DB passwords and secrets
+# =============================================
+.env
+.env.local
+.env.*.local
+
+# =============================================
+# BUILD OUTPUT
+# =============================================
+dist/
+dist-ssr/
+build/
+
+# =============================================
+# UPLOADED FILES — served at runtime, not versioned
+# =============================================
+backend/uploads/
+
+# =============================================
+# LOGS
+# =============================================
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# =============================================
+# OS / SYSTEM FILES
+# =============================================
+.DS_Store
+Thumbs.db
+desktop.ini
+ehthumbs.db
+Desktop.ini
+
+# =============================================
+# EDITOR SETTINGS (local, per-developer)
+# =============================================
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# =============================================
+# AI ASSISTANT LOCAL SETTINGS
+# =============================================
+.claude/
+
+# =============================================
+# PACKAGE MANAGER LOCKS (optional — keep if you want reproducible installs)
+# To track them: comment out the two lines below
+# =============================================
+# package-lock.json
+# yarn.lock
+
+# =============================================
+# MISC ARTIFACTS
+# =============================================
+*.local
+*.orig
+
+# =============================================
+# ROOT-LEVEL TEST ARTIFACTS (not part of the app)
+# =============================================
+/index.html
