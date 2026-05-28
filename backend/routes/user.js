@@ -1,38 +1,36 @@
-const router = require('express').Router();
-const bcrypt = require('bcryptjs');
-const db     = require('../config/db');
-const auth   = require('../middleware/auth');
+'use strict';
+
+const bcrypt   = require('bcryptjs');
+const router   = require('express').Router();
+const auth     = require('../middleware/auth');
+const Klient   = require('../models/klient.model');
+const Detaji   = require('../models/detaji.model');
+const Njoftimi = require('../models/njoftimi.model');
 
 router.get('/me', auth, async (req, res) => {
   try {
-    const [rows] = await db.query(
-      'SELECT klient_id,emri,mbiemri,email,telefoni,adresa,qyteti,kodi_postar,data_regjistrimit FROM Klientet WHERE klient_id=?',
-      [req.user.id]
-    );
-    if (!rows.length) return res.status(404).json({ error: 'User not found' });
-    res.json(rows[0]);
+    const klient = await Klient.getById(req.user.id);
+    if (!klient) return res.status(404).json({ error: 'User not found' });
+    res.json(klient);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 router.put('/me', auth, async (req, res) => {
+  const { password, currentPassword } = req.body;
+
+  if (password && password.length < 6)
+    return res.status(400).json({ error: 'Password must be at least 6 characters' });
+
   try {
-    const { emri, mbiemri, email, telefoni, adresa, qyteti, kodi_postar, password, currentPassword } = req.body;
     if (password) {
-      if (password.length < 6) return res.status(400).json({ error: 'Password must be at least 6 characters' });
-      const [rows] = await db.query('SELECT fjalekalimi_hash FROM Klientet WHERE klient_id=?', [req.user.id]);
-      if (!rows.length) return res.status(404).json({ error: 'User not found' });
-      const match = await bcrypt.compare(currentPassword || '', rows[0].fjalekalimi_hash);
+      const row = await Klient.getHashById(req.user.id);
+      if (!row) return res.status(404).json({ error: 'User not found' });
+      const match = await bcrypt.compare(currentPassword || '', row.fjalekalimi_hash);
       if (!match) return res.status(401).json({ error: 'Current password is incorrect' });
       const hash = await bcrypt.hash(password, 10);
-      await db.query(
-        'UPDATE Klientet SET emri=?,mbiemri=?,email=?,fjalekalimi_hash=?,telefoni=?,adresa=?,qyteti=?,kodi_postar=? WHERE klient_id=?',
-        [emri, mbiemri, email, hash, telefoni || null, adresa || null, qyteti || null, kodi_postar || null, req.user.id]
-      );
+      await Klient.updateProfileWithHash(req.user.id, hash, req.body);
     } else {
-      await db.query(
-        'UPDATE Klientet SET emri=?,mbiemri=?,email=?,telefoni=?,adresa=?,qyteti=?,kodi_postar=? WHERE klient_id=?',
-        [emri, mbiemri, email, telefoni || null, adresa || null, qyteti || null, kodi_postar || null, req.user.id]
-      );
+      await Klient.updateProfile(req.user.id, req.body);
     }
     res.json({ message: 'Profile updated' });
   } catch (err) {
@@ -43,23 +41,24 @@ router.put('/me', auth, async (req, res) => {
 
 router.get('/orders', auth, async (req, res) => {
   try {
-    const [orders] = await db.query(
-      'SELECT * FROM Porosite WHERE klient_id=? ORDER BY porosi_id DESC',
-      [req.user.id]
-    );
-
+    const orders = await Klient.getMyOrders(req.user.id);
     const ordersWithItems = await Promise.all(orders.map(async order => {
-      const [items] = await db.query(
-        `SELECT d.*, l.titulli, l.foto_url, l.liber_id as book_id
-         FROM Detajet_Porosise d
-         LEFT JOIN Librat l ON d.liber_id = l.liber_id
-         WHERE d.porosi_id = ?`,
-        [order.porosi_id]
-      );
+      const items = await Detaji.getByPorosiWithDetails(order.porosi_id);
       return { ...order, items };
     }));
-
     res.json(ordersWithItems);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.get('/notifications', auth, async (req, res) => {
+  try { res.json(await Njoftimi.getByKlient(req.user.id)); }
+  catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.patch('/notifications/:id/read', auth, async (req, res) => {
+  try {
+    await Njoftimi.markRead(req.params.id);
+    res.json({ message: 'Njoftimi u shënua si i lexuar' });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
