@@ -4,24 +4,24 @@ const db          = require('../config/db');
 const authService = require('../services/auth.service');
 
 const VALID_EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const normalise   = raw => (raw || '').toLowerCase().trim();
 
 // ── POST /api/admin/auth/register ─────────────────────────────────────────────
 
 exports.register = async (req, res) => {
   const { emri, mbiemri, email, password } = req.body;
-  const emailNorm = (email || '').toLowerCase().trim();
-  console.log(`[AdminAuth] Register attempt: ${emailNorm}`);
+  const emailNorm = normalise(email);
+
+  if (!emri || !mbiemri || !email || !password)
+    return res.status(400).json({ error: 'All fields are required.' });
+
+  if (!VALID_EMAIL.test(emailNorm))
+    return res.status(400).json({ error: 'Please enter a valid email address.' });
+
+  if (password.length < 6)
+    return res.status(400).json({ error: 'Password must be at least 6 characters.' });
 
   try {
-    if (!emri || !mbiemri || !email || !password)
-      return res.status(400).json({ error: 'All fields are required.' });
-
-    if (!VALID_EMAIL.test(emailNorm))
-      return res.status(400).json({ error: 'Please enter a valid email address.' });
-
-    if (password.length < 6)
-      return res.status(400).json({ error: 'Password must be at least 6 characters.' });
-
     const hash = await authService.hashPassword(password);
 
     const [result] = await db.query(
@@ -38,8 +38,6 @@ exports.register = async (req, res) => {
       roli:    'admin',
     });
 
-    console.log(`[AdminAuth] Register: admin created id=${result.insertId} email=${emailNorm}`);
-
     return res.status(201).json({
       token,
       user: {
@@ -52,10 +50,8 @@ exports.register = async (req, res) => {
     });
 
   } catch (err) {
-    if (err.code === 'ER_DUP_ENTRY') {
-      console.warn(`[AdminAuth] Register: duplicate email ${emailNorm}`);
+    if (err.code === 'ER_DUP_ENTRY')
       return res.status(409).json({ error: 'An admin account with this email already exists.' });
-    }
     console.error('[AdminAuth] Register error:', err.message);
     return res.status(500).json({ error: 'Registration failed. Please try again.' });
   }
@@ -65,27 +61,18 @@ exports.register = async (req, res) => {
 
 exports.login = async (req, res) => {
   const { email, password } = req.body;
-  const emailNorm = (email || '').toLowerCase().trim();
-  console.log(`[AdminAuth] Login attempt: ${emailNorm}`);
+
+  if (!email || !password)
+    return res.status(400).json({ error: 'Email and password are required.' });
+
+  const emailNorm = normalise(email);
 
   try {
-    if (!email || !password)
-      return res.status(400).json({ error: 'Email and password are required.' });
-
     const [rows] = await db.query('SELECT * FROM Adminet WHERE email = ?', [emailNorm]);
+    const admin  = rows[0];
 
-    if (!rows.length) {
-      console.warn(`[AdminAuth] Login: not found ${emailNorm}`);
+    if (!admin || !(await authService.comparePassword(password, admin.fjalekalimi_hash)))
       return res.status(401).json({ error: 'Incorrect email or password.' });
-    }
-
-    const admin = rows[0];
-
-    const match = await authService.comparePassword(password, admin.fjalekalimi_hash);
-    if (!match) {
-      console.warn(`[AdminAuth] Login: wrong password for ${emailNorm}`);
-      return res.status(401).json({ error: 'Incorrect email or password.' });
-    }
 
     const token = authService.signToken({
       id:      admin.admin_id,
@@ -94,8 +81,6 @@ exports.login = async (req, res) => {
       mbiemri: admin.mbiemri,
       roli:    'admin',
     });
-
-    console.log(`[AdminAuth] Login: success id=${admin.admin_id} email=${admin.email}`);
 
     return res.json({
       token,
@@ -118,4 +103,121 @@ exports.login = async (req, res) => {
 
 exports.me = (req, res) => {
   res.json({ admin: req.admin });
+};
+
+// ── POST /api/admin/auth/forgot-password ─────────────────────────────────────
+
+exports.forgotPassword = async (req, res) => {
+  const email    = normalise(req.body.email);
+  const SAFE_MSG = 'If an account with that email exists, a reset link has been logged to the server console.';
+
+  if (!email)
+    return res.status(400).json({ error: 'Email is required.' });
+
+  try {
+    const [rows] = await db.query('SELECT admin_id FROM Adminet WHERE email = ?', [email]);
+
+    if (rows.length) {
+      const token  = authService.generateToken();
+      const expiry = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
+
+      await db.query(
+        'UPDATE Adminet SET reset_token = ?, reset_token_expiry = ? WHERE admin_id = ?',
+        [token, expiry, rows[0].admin_id]
+      );
+
+      const link = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/admin/reset-password?token=${token}`;
+      console.log(`[ADMIN RESET] Link  : ${link}`);
+      console.log(`[ADMIN RESET] Expiry: ${expiry.toISOString()}`);
+      console.log('Password reset link:', link);
+    }
+
+    return res.json({ message: SAFE_MSG });
+
+  } catch (err) {
+    console.error('[AdminAuth] forgotPassword error:', err.message);
+    return res.status(500).json({ error: 'Request failed. Please try again.' });
+  }
+};
+
+// ── PUT /api/admin/auth/reset-password ────────────────────────────────────────
+
+exports.resetPassword = async (req, res) => {
+  const { token, newPassword } = req.body;
+
+  if (!token || !newPassword)
+    return res.status(400).json({ error: 'Token and new password are required.' });
+
+  if (newPassword.length < 6)
+    return res.status(400).json({ error: 'Password must be at least 6 characters.' });
+
+  try {
+    const [rows] = await db.query(
+      'SELECT admin_id, reset_token_expiry FROM Adminet WHERE reset_token = ?',
+      [token]
+    );
+
+    if (!rows.length)
+      return res.status(400).json({ error: 'This reset link is invalid or has expired.' });
+
+    if (new Date() > new Date(rows[0].reset_token_expiry))
+      return res.status(400).json({ error: 'This reset link has expired. Please request a new one.' });
+
+    const { admin_id } = rows[0];
+    const hash = await authService.hashPassword(newPassword);
+
+    await db.query(
+      'UPDATE Adminet SET fjalekalimi_hash = ?, reset_token = NULL, reset_token_expiry = NULL WHERE admin_id = ?',
+      [hash, admin_id]
+    );
+
+    return res.json({ message: 'Password reset successfully. You can now log in.' });
+
+  } catch (err) {
+    console.error('[AdminAuth] resetPassword error:', err.message);
+    return res.status(500).json({ error: 'Reset failed. Please try again.' });
+  }
+};
+
+// ── PUT /api/admin/auth/change-password ───────────────────────────────────────
+
+exports.changePassword = async (req, res) => {
+  const { currentPassword, newPassword } = req.body;
+
+  if (!currentPassword || !newPassword)
+    return res.status(400).json({ error: 'Both fields are required.' });
+
+  if (newPassword.length < 6)
+    return res.status(400).json({ error: 'New password must be at least 6 characters.' });
+
+  try {
+    const [rows] = await db.query(
+      'SELECT fjalekalimi_hash FROM Adminet WHERE admin_id = ?',
+      [req.admin.id]
+    );
+
+    if (!rows.length)
+      return res.status(404).json({ error: 'Admin account not found.' });
+
+    const { fjalekalimi_hash } = rows[0];
+
+    if (!(await authService.comparePassword(currentPassword, fjalekalimi_hash)))
+      return res.status(401).json({ error: 'Current password is incorrect.' });
+
+    if (await authService.comparePassword(newPassword, fjalekalimi_hash))
+      return res.status(400).json({ error: 'New password must be different from your current password.' });
+
+    const newHash = await authService.hashPassword(newPassword);
+
+    await db.query(
+      'UPDATE Adminet SET fjalekalimi_hash = ? WHERE admin_id = ?',
+      [newHash, req.admin.id]
+    );
+
+    return res.json({ message: 'Password changed successfully.' });
+
+  } catch (err) {
+    console.error('[AdminAuth] changePassword error:', err.message);
+    return res.status(500).json({ error: 'Password change failed. Please try again.' });
+  }
 };
