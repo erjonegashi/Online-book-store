@@ -1,0 +1,2 @@
+ALTER TABLE Klientet ADD COLUMN reset_token        VARCHAR(255) DEFAULT NULL;
+ALTER TABLE Klientet ADD COLUMN reset_token_expiry DATETIME    DEFAULT NULL;
