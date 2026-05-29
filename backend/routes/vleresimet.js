@@ -1,45 +1,37 @@
-const router = require('express').Router();
-const db     = require('../config/db');
+'use strict';
+
+const router     = require('express').Router();
+const Vleresimi  = require('../models/vleresimi.model');
+const auth       = require('../middleware/auth');
+const adminAuth  = require('../middleware/adminAuth');
 
 router.get('/', async (_req, res) => {
-  try {
-    const [rows] = await db.query(`
-      SELECT v.*, l.titulli, CONCAT(k.emri,' ',k.mbiemri) AS klient_emri
-      FROM Vleresimet v
-      LEFT JOIN Librat    l ON v.liber_id  = l.liber_id
-      LEFT JOIN Klientet  k ON v.klient_id = k.klient_id
-      ORDER BY v.data DESC`);
-    res.json(rows);
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  try { res.json(await Vleresimi.getAll()); }
+  catch (err) { console.error(err); res.status(500).json({ error: 'Kërkesa dështoi. Provo përsëri.' }); }
 });
 
-router.post('/', async (req, res) => {
+router.post('/', auth, async (req, res) => {
+  const { liber_id, klient_id, nota } = req.body;
+  if (!liber_id || !klient_id || !nota)
+    return res.status(400).json({ error: 'Fushat e detyrueshme mungojnë' });
   try {
-    const { liber_id, klient_id, nota, komenti, statusi } = req.body;
-    const [result] = await db.query(
-      'INSERT INTO Vleresimet (liber_id,klient_id,nota,komenti,statusi) VALUES (?,?,?,?,?)',
-      [liber_id, klient_id, nota, komenti||null, statusi||'Pending']
-    );
-    res.status(201).json({ vleresim_id: result.insertId });
-  } catch (err) { res.status(500).json({ error: err.message }); }
+    const vleresim_id = await Vleresimi.create(req.body);
+    res.status(201).json({ vleresim_id });
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Kërkesa dështoi. Provo përsëri.' }); }
 });
 
-router.put('/:id', async (req, res) => {
+router.put('/:id', adminAuth, async (req, res) => {
   try {
-    const { liber_id, klient_id, nota, komenti, statusi } = req.body;
-    await db.query(
-      'UPDATE Vleresimet SET liber_id=?,klient_id=?,nota=?,komenti=?,statusi=? WHERE vleresim_id=?',
-      [liber_id, klient_id, nota, komenti||null, statusi, req.params.id]
-    );
+    await Vleresimi.update(req.params.id, req.body);
     res.json({ message: 'Vlerësimi u azhurnua' });
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Kërkesa dështoi. Provo përsëri.' }); }
 });
 
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', adminAuth, async (req, res) => {
   try {
-    await db.query('DELETE FROM Vleresimet WHERE vleresim_id = ?', [req.params.id]);
+    await Vleresimi.remove(req.params.id);
     res.json({ message: 'Vlerësimi u fshi' });
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Kërkesa dështoi. Provo përsëri.' }); }
 });
 
 module.exports = router;
