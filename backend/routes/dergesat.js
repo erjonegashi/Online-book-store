@@ -1,53 +1,42 @@
-const router = require('express').Router();
-const db     = require('../config/db');
+'use strict';
+
+const router  = require('express').Router();
+const Dergesa = require('../models/dergesa.model');
 
 router.get('/', async (_req, res) => {
-  try {
-    const [rows] = await db.query(`
-      SELECT d.*, p.data_porosise, CONCAT(k.emri,' ',k.mbiemri) AS klient_emri
-      FROM Dergesat d
-      LEFT JOIN Porosite  p ON d.porosi_id = p.porosi_id
-      LEFT JOIN Klientet  k ON p.klient_id = k.klient_id
-      ORDER BY d.dergesa_id DESC`);
-    res.json(rows);
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  try { res.json(await Dergesa.getAll()); }
+  catch (err) { console.error(err); res.status(500).json({ error: 'Kërkesa dështoi. Provo përsëri.' }); }
 });
 
 router.get('/:id', async (req, res) => {
   try {
-    const [rows] = await db.query('SELECT * FROM Dergesat WHERE dergesa_id = ?', [req.params.id]);
-    if (!rows.length) return res.status(404).json({ error: 'Dërgesa nuk u gjet' });
-    res.json(rows[0]);
-  } catch (err) { res.status(500).json({ error: err.message }); }
+    const dergesa = await Dergesa.getById(req.params.id);
+    if (!dergesa) return res.status(404).json({ error: 'Dërgesa nuk u gjet' });
+    res.json(dergesa);
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Kërkesa dështoi. Provo përsëri.' }); }
 });
 
 router.post('/', async (req, res) => {
+  if (!req.body.porosi_id)
+    return res.status(400).json({ error: 'Fushat e detyrueshme mungojnë' });
   try {
-    const { porosi_id, kompania_dergeses, numri_gjurmimit, data_dergimit, data_mberritjes, statusi } = req.body;
-    const [result] = await db.query(
-      'INSERT INTO Dergesat (porosi_id,kompania_dergeses,numri_gjurmimit,data_dergimit,data_mberritjes,statusi) VALUES (?,?,?,?,?,?)',
-      [porosi_id, kompania_dergeses||null, numri_gjurmimit||null, data_dergimit||null, data_mberritjes||null, statusi||'Preparing']
-    );
-    res.status(201).json({ dergesa_id: result.insertId, message: 'Dërgesa u shtua' });
-  } catch (err) { res.status(500).json({ error: err.message }); }
+    const dergesa_id = await Dergesa.create(req.body);
+    res.status(201).json({ dergesa_id, message: 'Dërgesa u shtua' });
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Kërkesa dështoi. Provo përsëri.' }); }
 });
 
 router.put('/:id', async (req, res) => {
   try {
-    const { porosi_id, kompania_dergeses, numri_gjurmimit, data_dergimit, data_mberritjes, statusi } = req.body;
-    await db.query(
-      'UPDATE Dergesat SET porosi_id=?,kompania_dergeses=?,numri_gjurmimit=?,data_dergimit=?,data_mberritjes=?,statusi=? WHERE dergesa_id=?',
-      [porosi_id, kompania_dergeses||null, numri_gjurmimit||null, data_dergimit||null, data_mberritjes||null, statusi, req.params.id]
-    );
+    await Dergesa.update(req.params.id, req.body);
     res.json({ message: 'Dërgesa u azhurnua' });
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Kërkesa dështoi. Provo përsëri.' }); }
 });
 
 router.delete('/:id', async (req, res) => {
   try {
-    await db.query('DELETE FROM Dergesat WHERE dergesa_id = ?', [req.params.id]);
+    await Dergesa.remove(req.params.id);
     res.json({ message: 'Dërgesa u fshi' });
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Kërkesa dështoi. Provo përsëri.' }); }
 });
 
 module.exports = router;

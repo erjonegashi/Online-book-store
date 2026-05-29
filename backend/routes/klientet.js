@@ -1,81 +1,51 @@
+'use strict';
+
 const router = require('express').Router();
-const bcrypt = require('bcryptjs');
-const db     = require('../config/db');
+const Klient = require('../models/klient.model');
 
 router.get('/', async (_req, res) => {
-  try {
-    const [rows] = await db.query(
-      'SELECT klient_id,emri,mbiemri,email,telefoni,adresa,qyteti,kodi_postar,data_regjistrimit FROM Klientet ORDER BY klient_id DESC'
-    );
-    res.json(rows);
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  try { res.json(await Klient.getAll()); }
+  catch (err) { console.error(err); res.status(500).json({ error: 'Kërkesa dështoi. Provo përsëri.' }); }
 });
 
 router.get('/:id', async (req, res) => {
   try {
-    const [rows] = await db.query(
-      'SELECT klient_id,emri,mbiemri,email,telefoni,adresa,qyteti,kodi_postar,data_regjistrimit FROM Klientet WHERE klient_id=?',
-      [req.params.id]
-    );
-    if (!rows.length) return res.status(404).json({ error: 'Klienti nuk u gjet' });
-    res.json(rows[0]);
-  } catch (err) { res.status(500).json({ error: err.message }); }
+    const klient = await Klient.getById(req.params.id);
+    if (!klient) return res.status(404).json({ error: 'Klienti nuk u gjet' });
+    res.json(klient);
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Kërkesa dështoi. Provo përsëri.' }); }
 });
 
 router.get('/:id/porosite', async (req, res) => {
-  try {
-    const [orders] = await db.query(
-      'SELECT * FROM Porosite WHERE klient_id=? ORDER BY porosi_id DESC',
-      [req.params.id]
-    );
-    const [[stats]] = await db.query(
-      'SELECT COUNT(*) as total, COALESCE(SUM(shuma_totale),0) as shpenzuar FROM Porosite WHERE klient_id=?',
-      [req.params.id]
-    );
-    res.json({ orders, total: stats.total, shpenzuar: stats.shpenzuar });
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  try { res.json(await Klient.getOrders(req.params.id)); }
+  catch (err) { console.error(err); res.status(500).json({ error: 'Kërkesa dështoi. Provo përsëri.' }); }
 });
 
 router.post('/', async (req, res) => {
+  const { emri, mbiemri, email, password } = req.body;
+  if (!emri || !mbiemri || !email || !password)
+    return res.status(400).json({ error: 'Fushat e detyrueshme mungojnë' });
   try {
-    const { emri, mbiemri, email, password, telefoni, adresa, qyteti, kodi_postar } = req.body;
-    if (!password) return res.status(400).json({ error: 'Fjalëkalimi kërkohet' });
-    const hash = await bcrypt.hash(password, 10);
-    const [result] = await db.query(
-      'INSERT INTO Klientet (emri,mbiemri,email,fjalekalimi_hash,telefoni,adresa,qyteti,kodi_postar) VALUES (?,?,?,?,?,?,?,?)',
-      [emri, mbiemri, email, hash, telefoni||null, adresa||null, qyteti||null, kodi_postar||null]
-    );
-    res.status(201).json({ klient_id: result.insertId, message: 'Klienti u shtua' });
+    const klient_id = await Klient.create(req.body);
+    res.status(201).json({ klient_id, message: 'Klienti u shtua' });
   } catch (err) {
     if (err.code === 'ER_DUP_ENTRY') return res.status(409).json({ error: 'Email ekziston tashmë' });
-    res.status(500).json({ error: err.message });
+    console.error(err); res.status(500).json({ error: 'Kërkesa dështoi. Provo përsëri.' });
   }
 });
 
 router.put('/:id', async (req, res) => {
   try {
-    const { emri, mbiemri, email, password, telefoni, adresa, qyteti, kodi_postar } = req.body;
-    if (password) {
-      const hash = await bcrypt.hash(password, 10);
-      await db.query(
-        'UPDATE Klientet SET emri=?,mbiemri=?,email=?,fjalekalimi_hash=?,telefoni=?,adresa=?,qyteti=?,kodi_postar=? WHERE klient_id=?',
-        [emri, mbiemri, email, hash, telefoni||null, adresa||null, qyteti||null, kodi_postar||null, req.params.id]
-      );
-    } else {
-      await db.query(
-        'UPDATE Klientet SET emri=?,mbiemri=?,email=?,telefoni=?,adresa=?,qyteti=?,kodi_postar=? WHERE klient_id=?',
-        [emri, mbiemri, email, telefoni||null, adresa||null, qyteti||null, kodi_postar||null, req.params.id]
-      );
-    }
+    await Klient.update(req.params.id, req.body);
     res.json({ message: 'Klienti u azhurnua' });
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Kërkesa dështoi. Provo përsëri.' }); }
 });
 
 router.delete('/:id', async (req, res) => {
   try {
-    await db.query('DELETE FROM Klientet WHERE klient_id = ?', [req.params.id]);
+    await Klient.remove(req.params.id);
     res.json({ message: 'Klienti u fshi' });
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Kërkesa dështoi. Provo përsëri.' }); }
 });
 
 module.exports = router;
