@@ -1,62 +1,54 @@
+'use strict';
+
 const router = require('express').Router();
-const db     = require('../config/db');
+const Kuponi = require('../models/kuponi.model');
 
 router.get('/', async (_req, res) => {
-  try {
-    const [rows] = await db.query('SELECT * FROM Kuponat ORDER BY kupon_id DESC');
-    res.json(rows);
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  try { res.json(await Kuponi.getAll()); }
+  catch (err) { console.error(err); res.status(500).json({ error: 'Kërkesa dështoi. Provo përsëri.' }); }
 });
 
 router.get('/:id', async (req, res) => {
   try {
-    const [rows] = await db.query('SELECT * FROM Kuponat WHERE kupon_id = ?', [req.params.id]);
-    if (!rows.length) return res.status(404).json({ error: 'Kuponi nuk u gjet' });
-    res.json(rows[0]);
-  } catch (err) { res.status(500).json({ error: err.message }); }
+    const kuponi = await Kuponi.getById(req.params.id);
+    if (!kuponi) return res.status(404).json({ error: 'Kuponi nuk u gjet' });
+    res.json(kuponi);
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Kërkesa dështoi. Provo përsëri.' }); }
 });
 
 router.get('/kodi/:kodi', async (req, res) => {
   try {
-    const [rows] = await db.query(
-      'SELECT * FROM Kuponat WHERE kodi=? AND statusi="Active" AND (data_perfundimit IS NULL OR data_perfundimit >= CURDATE())',
-      [req.params.kodi]
-    );
-    if (!rows.length) return res.status(404).json({ error: 'Kuponi jo i vlefshëm' });
-    res.json(rows[0]);
-  } catch (err) { res.status(500).json({ error: err.message }); }
+    const kuponi = await Kuponi.getByKodi(req.params.kodi);
+    if (!kuponi) return res.status(404).json({ error: 'Kuponi jo i vlefshëm' });
+    res.json(kuponi);
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Kërkesa dështoi. Provo përsëri.' }); }
 });
 
 router.post('/', async (req, res) => {
+  const { kodi, perqindja_zbritjes } = req.body;
+  if (!kodi || !perqindja_zbritjes)
+    return res.status(400).json({ error: 'Fushat e detyrueshme mungojnë' });
   try {
-    const { kodi, pershkrimi, perqindja_zbritjes, vlera_minimale, data_fillimit, data_perfundimit, statusi } = req.body;
-    const [result] = await db.query(
-      'INSERT INTO Kuponat (kodi,pershkrimi,perqindja_zbritjes,vlera_minimale,data_fillimit,data_perfundimit,statusi) VALUES (?,?,?,?,?,?,?)',
-      [kodi, pershkrimi||null, perqindja_zbritjes, vlera_minimale||0, data_fillimit||null, data_perfundimit||null, statusi||'Active']
-    );
-    res.status(201).json({ kupon_id: result.insertId });
+    const kupon_id = await Kuponi.create(req.body);
+    res.status(201).json({ kupon_id });
   } catch (err) {
     if (err.code === 'ER_DUP_ENTRY') return res.status(409).json({ error: 'Kodi ekziston tashmë' });
-    res.status(500).json({ error: err.message });
+    console.error(err); res.status(500).json({ error: 'Kërkesa dështoi. Provo përsëri.' });
   }
 });
 
 router.put('/:id', async (req, res) => {
   try {
-    const { kodi, pershkrimi, perqindja_zbritjes, vlera_minimale, data_fillimit, data_perfundimit, statusi } = req.body;
-    await db.query(
-      'UPDATE Kuponat SET kodi=?,pershkrimi=?,perqindja_zbritjes=?,vlera_minimale=?,data_fillimit=?,data_perfundimit=?,statusi=? WHERE kupon_id=?',
-      [kodi, pershkrimi||null, perqindja_zbritjes, vlera_minimale||0, data_fillimit||null, data_perfundimit||null, statusi, req.params.id]
-    );
+    await Kuponi.update(req.params.id, req.body);
     res.json({ message: 'Kuponi u azhurnua' });
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Kërkesa dështoi. Provo përsëri.' }); }
 });
 
 router.delete('/:id', async (req, res) => {
   try {
-    await db.query('DELETE FROM Kuponat WHERE kupon_id = ?', [req.params.id]);
+    await Kuponi.remove(req.params.id);
     res.json({ message: 'Kuponi u fshi' });
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Kërkesa dështoi. Provo përsëri.' }); }
 });
 
 module.exports = router;

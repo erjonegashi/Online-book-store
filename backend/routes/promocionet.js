@@ -1,62 +1,48 @@
 'use strict';
-const router = require('express').Router();
-const db     = require('../config/db');
+
+const router     = require('express').Router();
+const Promocioni = require('../models/promocioni.model');
 
 router.get('/', async (_req, res) => {
-  try {
-    const [rows] = await db.query('SELECT * FROM Promocionet ORDER BY promovim_id DESC');
-    res.json(rows);
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  try { res.json(await Promocioni.getAll()); }
+  catch (err) { console.error(err); res.status(500).json({ error: 'Kërkesa dështoi. Provo përsëri.' }); }
 });
 
 router.get('/:id', async (req, res) => {
   try {
-    const [rows] = await db.query('SELECT * FROM Promocionet WHERE promovim_id = ?', [req.params.id]);
-    if (!rows.length) return res.status(404).json({ error: 'Promovimi nuk u gjet' });
-    res.json(rows[0]);
-  } catch (err) { res.status(500).json({ error: err.message }); }
+    const promocioni = await Promocioni.getById(req.params.id);
+    if (!promocioni) return res.status(404).json({ error: 'Promovimi nuk u gjet' });
+    res.json(promocioni);
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Kërkesa dështoi. Provo përsëri.' }); }
 });
 
 router.post('/', async (req, res) => {
+  const { titulli, perqindja_zbritjes } = req.body;
+  if (!titulli) return res.status(400).json({ error: 'Titulli është i detyrueshëm' });
+  if (!perqindja_zbritjes) return res.status(400).json({ error: 'Përqindja e zbritjes është e detyrueshme' });
   try {
-    const { titulli, pershkrim, perqindja_zbritjes, kodi, data_fillimit, data_mbarimit, aktive } = req.body;
-    if (!titulli) return res.status(400).json({ error: 'Titulli është i detyrueshëm' });
-    if (!perqindja_zbritjes) return res.status(400).json({ error: 'Përqindja e zbritjes është e detyrueshme' });
-    const [result] = await db.query(
-      `INSERT INTO Promocionet
-         (titulli, pershkrim, perqindja_zbritjes, kodi, data_fillimit, data_mbarimit, aktive)
-       VALUES (?,?,?,?,?,?,?)`,
-      [titulli, pershkrim || null, perqindja_zbritjes, kodi || null,
-       data_fillimit || null, data_mbarimit || null, aktive !== undefined ? aktive : 1]
-    );
-    res.status(201).json({ promovim_id: result.insertId });
+    const promovim_id = await Promocioni.create(req.body);
+    res.status(201).json({ promovim_id });
   } catch (err) {
     if (err.code === 'ER_DUP_ENTRY') return res.status(409).json({ error: 'Kodi i promovimit ekziston tashmë' });
-    res.status(500).json({ error: err.message });
+    console.error(err); res.status(500).json({ error: 'Kërkesa dështoi. Provo përsëri.' });
   }
 });
 
 router.put('/:id', async (req, res) => {
+  if (!req.body.titulli)
+    return res.status(400).json({ error: 'Titulli është i detyrueshëm' });
   try {
-    const { titulli, pershkrim, perqindja_zbritjes, kodi, data_fillimit, data_mbarimit, aktive } = req.body;
-    if (!titulli) return res.status(400).json({ error: 'Titulli është i detyrueshëm' });
-    await db.query(
-      `UPDATE Promocionet
-          SET titulli=?, pershkrim=?, perqindja_zbritjes=?, kodi=?,
-              data_fillimit=?, data_mbarimit=?, aktive=?
-        WHERE promovim_id=?`,
-      [titulli, pershkrim || null, perqindja_zbritjes, kodi || null,
-       data_fillimit || null, data_mbarimit || null, aktive ? 1 : 0, req.params.id]
-    );
+    await Promocioni.update(req.params.id, req.body);
     res.json({ message: 'Promovimi u azhurnua' });
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Kërkesa dështoi. Provo përsëri.' }); }
 });
 
 router.delete('/:id', async (req, res) => {
   try {
-    await db.query('DELETE FROM Promocionet WHERE promovim_id = ?', [req.params.id]);
+    await Promocioni.remove(req.params.id);
     res.json({ message: 'Promovimi u fshi' });
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Kërkesa dështoi. Provo përsëri.' }); }
 });
 
 module.exports = router;
