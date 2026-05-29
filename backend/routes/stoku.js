@@ -1,71 +1,48 @@
 'use strict';
+
 const router = require('express').Router();
-const db     = require('../config/db');
+const Stoku  = require('../models/stoku.model');
 
 router.get('/', async (_req, res) => {
-  try {
-    const [rows] = await db.query(`
-      SELECT s.*, l.titulli
-      FROM Stoku s
-      LEFT JOIN Librat l ON s.liber_id = l.liber_id
-      ORDER BY s.stok_id DESC`);
-    res.json(rows);
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  try { res.json(await Stoku.getAll()); }
+  catch (err) { console.error(err); res.status(500).json({ error: 'Kërkesa dështoi. Provo përsëri.' }); }
 });
 
 router.get('/liber/:liber_id', async (req, res) => {
-  try {
-    const [rows] = await db.query(
-      'SELECT * FROM Stoku WHERE liber_id = ? ORDER BY created_at DESC',
-      [req.params.liber_id]
-    );
-    res.json(rows);
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  try { res.json(await Stoku.getByLiber(req.params.liber_id)); }
+  catch (err) { console.error(err); res.status(500).json({ error: 'Kërkesa dështoi. Provo përsëri.' }); }
 });
 
 router.get('/:id', async (req, res) => {
   try {
-    const [rows] = await db.query('SELECT * FROM Stoku WHERE stok_id = ?', [req.params.id]);
-    if (!rows.length) return res.status(404).json({ error: 'Lëvizja e stokut nuk u gjet' });
-    res.json(rows[0]);
-  } catch (err) { res.status(500).json({ error: err.message }); }
+    const lëvizja = await Stoku.getById(req.params.id);
+    if (!lëvizja) return res.status(404).json({ error: 'Lëvizja e stokut nuk u gjet' });
+    res.json(lëvizja);
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Kërkesa dështoi. Provo përsëri.' }); }
 });
 
 router.post('/', async (req, res) => {
+  const { liber_id, sasia_ndryshimit } = req.body;
+  if (!liber_id || sasia_ndryshimit === undefined)
+    return res.status(400).json({ error: 'Libri dhe sasia janë të detyrueshme' });
   try {
-    const { liber_id, sasia_ndryshimit, arsyeja } = req.body;
-    if (!liber_id || sasia_ndryshimit === undefined) {
-      return res.status(400).json({ error: 'Libri dhe sasia janë të detyrueshme' });
-    }
-    const [result] = await db.query(
-      'INSERT INTO Stoku (liber_id, sasia_ndryshimit, arsyeja) VALUES (?,?,?)',
-      [liber_id, sasia_ndryshimit, arsyeja || null]
-    );
-    // Update the stock quantity on Librat
-    await db.query(
-      'UPDATE Librat SET sasia_stok = sasia_stok + ? WHERE liber_id = ?',
-      [sasia_ndryshimit, liber_id]
-    );
-    res.status(201).json({ stok_id: result.insertId });
-  } catch (err) { res.status(500).json({ error: err.message }); }
+    const stok_id = await Stoku.create(req.body);
+    res.status(201).json({ stok_id });
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Kërkesa dështoi. Provo përsëri.' }); }
 });
 
 router.put('/:id', async (req, res) => {
   try {
-    const { liber_id, sasia_ndryshimit, arsyeja } = req.body;
-    await db.query(
-      'UPDATE Stoku SET liber_id=?, sasia_ndryshimit=?, arsyeja=? WHERE stok_id=?',
-      [liber_id, sasia_ndryshimit, arsyeja || null, req.params.id]
-    );
+    await Stoku.update(req.params.id, req.body);
     res.json({ message: 'Lëvizja e stokut u azhurnua' });
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Kërkesa dështoi. Provo përsëri.' }); }
 });
 
 router.delete('/:id', async (req, res) => {
   try {
-    await db.query('DELETE FROM Stoku WHERE stok_id = ?', [req.params.id]);
+    await Stoku.remove(req.params.id);
     res.json({ message: 'Lëvizja e stokut u fshi' });
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Kërkesa dështoi. Provo përsëri.' }); }
 });
 
 module.exports = router;
