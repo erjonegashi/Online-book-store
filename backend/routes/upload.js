@@ -1,6 +1,7 @@
-const router  = require('express').Router();
-const multer  = require('multer');
-const path    = require('path');
+const router    = require('express').Router();
+const multer    = require('multer');
+const path      = require('path');
+const adminAuth = require('../middleware/adminAuth');
 
 const storage = multer.diskStorage({
   destination: (_req, _file, cb) => cb(null, path.join(__dirname, '../uploads')),
@@ -19,7 +20,7 @@ const upload = multer({
   }
 });
 
-router.post('/', upload.single('foto'), (req, res) => {
+router.post('/', adminAuth, upload.single('foto'), (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'Nuk u ngarkua asnjë imazh' });
   res.json({ url: `/uploads/${req.file.filename}` });
 });

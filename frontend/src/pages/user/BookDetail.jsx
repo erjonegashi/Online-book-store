@@ -6,7 +6,7 @@ import { useUserAuth } from '../../context/UserAuthContext';
 import BookCard from '../../components/BookCard';
 import { BookOpen, AlertTriangle, Zap, CheckCircle, Star, Heart, Loader2, Check, ShoppingCart } from 'lucide-react';
 
-const BACKEND = 'http://localhost:5000';
+const BACKEND = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 const imgSrc  = url => !url ? null : url.startsWith('http') ? url : BACKEND + url;
 
 function Stars({ nota, interactive, onSelect }) {
