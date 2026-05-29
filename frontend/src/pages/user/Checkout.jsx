@@ -5,7 +5,7 @@ import { useUserAuth } from '../../context/UserAuthContext';
 import userApi from '../../api/userAxios';
 import { CheckCircle, ShoppingCart, AlertTriangle, BookOpen } from 'lucide-react';
 
-const BACKEND = 'http://localhost:5000';
+const BACKEND = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 const imgSrc  = url => !url ? null : url.startsWith('http') ? url : BACKEND + url;
 const METHODS  = ['Card', 'Cash', 'PayPal', 'Bank Transfer'];
 
