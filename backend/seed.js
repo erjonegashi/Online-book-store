@@ -1,5 +1,4 @@
 require('dotenv').config();
-const fs     = require('fs');
 const bcrypt = require('bcryptjs');
 const mysql  = require('mysql2/promise');
 
@@ -192,9 +191,6 @@ async function seed() {
   await conn.query("SET NAMES 'utf8mb4' COLLATE 'utf8mb4_unicode_ci'");
 
   try {
-    console.log('Creating / updating schema...');
-    await conn.query(fs.readFileSync(__dirname + '/schema.sql', 'utf8'));
-
     console.log('Clearing books, authors, categories...');
     await conn.query('SET FOREIGN_KEY_CHECKS=0');
     await conn.query('TRUNCATE TABLE Librat');

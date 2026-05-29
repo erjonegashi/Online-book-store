@@ -41,3 +41,5 @@ export default function Toast({ message, type = 'success', duration = 3500, onDo
     </div>
   );
 }
+//toast component
+

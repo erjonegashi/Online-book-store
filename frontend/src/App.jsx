@@ -4,32 +4,37 @@ import { UserAuthProvider, useUserAuth } from './context/UserAuthContext';
 import { CartProvider } from './context/CartContext';
 
 import AdminLayout   from './components/Layout';
-import AdminLogin    from './pages/Login';
-import AdminRegister from './pages/AdminRegister';
+import AdminLogin    from './pages/admin/Login';
+import AdminRegister from './pages/admin/AdminRegister';
 
-import Dashboard  from './pages/Dashboard';
-import Librat     from './pages/Librat';
-import Autoret    from './pages/Autoret';
-import Kategorite from './pages/Kategorite';
-import Botuesit   from './pages/Botuesit';
-import Gjuhet     from './pages/Gjuhet';
-import Seria      from './pages/Seria';
+import Dashboard  from './pages/admin/Dashboard';
+import Librat     from './pages/admin/Librat';
+import Autoret    from './pages/admin/Autoret';
+import Kategorite from './pages/admin/Kategorite';
+import Botuesit   from './pages/admin/Botuesit';
+import Gjuhet     from './pages/admin/Gjuhet';
+import Seria      from './pages/admin/Seria';
 
-import Klientet  from './pages/Klientet';
-import Adresat   from './pages/Adresat';
-import Njoftimet from './pages/Njoftimet';
+import Klientet  from './pages/admin/Klientet';
+import Adresat   from './pages/admin/Adresat';
+import Njoftimet from './pages/admin/Njoftimet';
 
-import Porosite    from './pages/Porosite';
-import Kuponat     from './pages/Kuponat';
-import Promocionet from './pages/Promocionet';
-import Pagesat     from './pages/Pagesat';
+import Porosite    from './pages/admin/Porosite';
+import Kuponat     from './pages/admin/Kuponat';
+import Promocionet from './pages/admin/Promocionet';
+import Pagesat     from './pages/admin/Pagesat';
 
-import Dergesat from './pages/Dergesat';
-import Stoku    from './pages/Stoku';
-import Kthimet  from './pages/Kthimet';
-import Faturat  from './pages/Faturat';
+import Dergesat from './pages/admin/Dergesat';
+import Stoku    from './pages/admin/Stoku';
+import Kthimet  from './pages/admin/Kthimet';
+import Faturat  from './pages/admin/Faturat';
 
-import Vleresimet from './pages/Vleresimet';
+import Vleresimet     from './pages/admin/Vleresimet';
+import ChangePassword  from './pages/admin/ChangePassword';
+import AdminForgotPassword from './pages/admin/ForgotPassword';
+import AdminResetPassword  from './pages/admin/ResetPassword';
+import UserForgotPassword  from './pages/user/ForgotPassword';
+import UserResetPassword   from './pages/user/ResetPassword';
 
 import UserLayout  from './components/UserLayout';
 import Home        from './pages/user/Home';
@@ -74,8 +79,13 @@ export default function App() {
                 <Route path="wishlist" element={<UserGuard><Wishlist /></UserGuard>} />
               </Route>
 
-              <Route path="/admin/login"    element={<AdminLogin />} />
-              <Route path="/admin/register" element={<AdminRegister />} />
+              <Route path="/admin/login"           element={<AdminLogin />} />
+              <Route path="/admin/register"        element={<AdminRegister />} />
+              <Route path="/admin/forgot-password" element={<AdminForgotPassword />} />
+              <Route path="/admin/reset-password"  element={<AdminResetPassword />} />
+
+              <Route path="/forgot-password"       element={<UserForgotPassword />} />
+              <Route path="/reset-password"        element={<UserResetPassword />} />
 
               <Route path="/admin" element={<AdminGuard><AdminLayout /></AdminGuard>}>
                 <Route index element={<Dashboard />} />
@@ -101,7 +111,8 @@ export default function App() {
                 <Route path="kthimet"     element={<Kthimet />} />
                 <Route path="faturat"     element={<Faturat />} />
 
-                <Route path="vleresimet"  element={<Vleresimet />} />
+                <Route path="vleresimet"     element={<Vleresimet />} />
+                <Route path="change-password" element={<ChangePassword />} />
               </Route>
 
               <Route path="*" element={<Navigate to="/" replace />} />

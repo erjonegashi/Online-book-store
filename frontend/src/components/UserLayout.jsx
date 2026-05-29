@@ -196,3 +196,4 @@ export default function UserLayout() {
     </div>
   );
 }
+//user layout component

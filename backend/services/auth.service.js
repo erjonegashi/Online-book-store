@@ -4,7 +4,12 @@ const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 const jwt    = require('jsonwebtoken');
 
-const jwtSecret = () => process.env.JWT_SECRET || 'bookstore_secret';
+if (!process.env.JWT_SECRET) {
+  console.error('[FATAL] JWT_SECRET is not set in environment. Refusing to start.');
+  process.exit(1);
+}
+
+const jwtSecret = () => process.env.JWT_SECRET;
 const JWT_OPTS  = { expiresIn: '24h' };
 
 module.exports = {
