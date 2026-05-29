@@ -1,64 +1,48 @@
 'use strict';
-const router = require('express').Router();
-const db     = require('../config/db');
+
+const router    = require('express').Router();
+const Njoftimi  = require('../models/njoftimi.model');
 
 router.get('/', async (_req, res) => {
-  try {
-    const [rows] = await db.query(`
-      SELECT n.*, CONCAT(k.emri,' ',k.mbiemri) AS klient_emri
-      FROM Njoftimet n
-      LEFT JOIN Klientet k ON n.klient_id = k.klient_id
-      ORDER BY n.created_at DESC`);
-    res.json(rows);
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  try { res.json(await Njoftimi.getAll()); }
+  catch (err) { console.error(err); res.status(500).json({ error: 'Kërkesa dështoi. Provo përsëri.' }); }
 });
 
 router.get('/klient/:klient_id', async (req, res) => {
-  try {
-    const [rows] = await db.query(
-      'SELECT * FROM Njoftimet WHERE klient_id = ? OR klient_id IS NULL ORDER BY created_at DESC',
-      [req.params.klient_id]
-    );
-    res.json(rows);
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  try { res.json(await Njoftimi.getByKlient(req.params.klient_id)); }
+  catch (err) { console.error(err); res.status(500).json({ error: 'Kërkesa dështoi. Provo përsëri.' }); }
 });
 
 router.get('/:id', async (req, res) => {
   try {
-    const [rows] = await db.query('SELECT * FROM Njoftimet WHERE njoftime_id = ?', [req.params.id]);
-    if (!rows.length) return res.status(404).json({ error: 'Njoftimi nuk u gjet' });
-    res.json(rows[0]);
-  } catch (err) { res.status(500).json({ error: err.message }); }
+    const njoftimi = await Njoftimi.getById(req.params.id);
+    if (!njoftimi) return res.status(404).json({ error: 'Njoftimi nuk u gjet' });
+    res.json(njoftimi);
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Kërkesa dështoi. Provo përsëri.' }); }
 });
 
 router.post('/', async (req, res) => {
+  const { titulli, mesazhi } = req.body;
+  if (!titulli || !mesazhi)
+    return res.status(400).json({ error: 'Titulli dhe mesazhi janë të detyrueshëm' });
   try {
-    const { titulli, mesazhi, lloji, klient_id } = req.body;
-    if (!titulli || !mesazhi) return res.status(400).json({ error: 'Titulli dhe mesazhi janë të detyrueshëm' });
-    const [result] = await db.query(
-      'INSERT INTO Njoftimet (titulli, mesazhi, lloji, klient_id) VALUES (?,?,?,?)',
-      [titulli, mesazhi, lloji || 'info', klient_id || null]
-    );
-    res.status(201).json({ njoftime_id: result.insertId });
-  } catch (err) { res.status(500).json({ error: err.message }); }
+    const njoftime_id = await Njoftimi.create(req.body);
+    res.status(201).json({ njoftime_id });
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Kërkesa dështoi. Provo përsëri.' }); }
 });
 
 router.put('/:id', async (req, res) => {
   try {
-    const { titulli, mesazhi, lloji, klient_id, lexuar } = req.body;
-    await db.query(
-      'UPDATE Njoftimet SET titulli=?, mesazhi=?, lloji=?, klient_id=?, lexuar=? WHERE njoftime_id=?',
-      [titulli, mesazhi, lloji || 'info', klient_id || null, lexuar ? 1 : 0, req.params.id]
-    );
+    await Njoftimi.update(req.params.id, req.body);
     res.json({ message: 'Njoftimi u azhurnua' });
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Kërkesa dështoi. Provo përsëri.' }); }
 });
 
 router.delete('/:id', async (req, res) => {
   try {
-    await db.query('DELETE FROM Njoftimet WHERE njoftime_id = ?', [req.params.id]);
+    await Njoftimi.remove(req.params.id);
     res.json({ message: 'Njoftimi u fshi' });
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Kërkesa dështoi. Provo përsëri.' }); }
 });
 
 module.exports = router;

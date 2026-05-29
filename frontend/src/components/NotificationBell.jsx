@@ -117,3 +117,4 @@ export default function NotificationBell() {
     </div>
   );
 }
+//notification bell component
