@@ -1,53 +1,43 @@
+'use strict';
+
 const router = require('express').Router();
-const db     = require('../config/db');
+const Pagesa = require('../models/pagesa.model');
 
 router.get('/', async (_req, res) => {
-  try {
-    const [rows] = await db.query(`
-      SELECT pg.*, CONCAT(k.emri,' ',k.mbiemri) AS klient_emri
-      FROM Pagesat pg
-      LEFT JOIN Porosite  p ON pg.porosi_id = p.porosi_id
-      LEFT JOIN Klientet  k ON p.klient_id  = k.klient_id
-      ORDER BY pg.pagese_id DESC`);
-    res.json(rows);
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  try { res.json(await Pagesa.getAll()); }
+  catch (err) { console.error(err); res.status(500).json({ error: 'Kërkesa dështoi. Provo përsëri.' }); }
 });
 
 router.get('/:id', async (req, res) => {
   try {
-    const [rows] = await db.query('SELECT * FROM Pagesat WHERE pagese_id = ?', [req.params.id]);
-    if (!rows.length) return res.status(404).json({ error: 'Pagesa nuk u gjet' });
-    res.json(rows[0]);
-  } catch (err) { res.status(500).json({ error: err.message }); }
+    const pagesa = await Pagesa.getById(req.params.id);
+    if (!pagesa) return res.status(404).json({ error: 'Pagesa nuk u gjet' });
+    res.json(pagesa);
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Kërkesa dështoi. Provo përsëri.' }); }
 });
 
 router.post('/', async (req, res) => {
+  const { porosi_id, shuma } = req.body;
+  if (!porosi_id || !shuma)
+    return res.status(400).json({ error: 'Fushat e detyrueshme mungojnë' });
   try {
-    const { porosi_id, shuma, metoda, statusi, referenca_transaksionit } = req.body;
-    const [result] = await db.query(
-      'INSERT INTO Pagesat (porosi_id,shuma,metoda,statusi,referenca_transaksionit) VALUES (?,?,?,?,?)',
-      [porosi_id, shuma, metoda||'Card', statusi||'Pending', referenca_transaksionit||null]
-    );
-    res.status(201).json({ pagese_id: result.insertId });
-  } catch (err) { res.status(500).json({ error: err.message }); }
+    const pagese_id = await Pagesa.create(req.body);
+    res.status(201).json({ pagese_id });
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Kërkesa dështoi. Provo përsëri.' }); }
 });
 
 router.put('/:id', async (req, res) => {
   try {
-    const { porosi_id, shuma, metoda, statusi, referenca_transaksionit } = req.body;
-    await db.query(
-      'UPDATE Pagesat SET porosi_id=?,shuma=?,metoda=?,statusi=?,referenca_transaksionit=? WHERE pagese_id=?',
-      [porosi_id, shuma, metoda, statusi, referenca_transaksionit||null, req.params.id]
-    );
+    await Pagesa.update(req.params.id, req.body);
     res.json({ message: 'Pagesa u azhurnua' });
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Kërkesa dështoi. Provo përsëri.' }); }
 });
 
 router.delete('/:id', async (req, res) => {
   try {
-    await db.query('DELETE FROM Pagesat WHERE pagese_id = ?', [req.params.id]);
+    await Pagesa.remove(req.params.id);
     res.json({ message: 'Pagesa u fshi' });
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) { console.error(err); res.status(500).json({ error: 'Kërkesa dështoi. Provo përsëri.' }); }
 });
 
 module.exports = router;
