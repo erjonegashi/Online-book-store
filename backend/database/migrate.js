@@ -81,7 +81,8 @@ async function runMigrations(db) {
         if (
           err.code === 'ER_CANT_DROP_FIELD_OR_KEY' ||  // DROP COLUMN on missing column
           err.code === 'ER_NO_SUCH_TABLE'            ||  // DROP on missing table
-          err.code === 'ER_DUP_FIELDNAME'               // ADD COLUMN that already exists
+          err.code === 'ER_DUP_FIELDNAME'            ||  // ADD COLUMN that already exists
+          err.code === 'ER_DUP_KEYNAME'                  // ADD INDEX that already exists
         ) {
           console.log(`[migrate]   warn  ${err.sqlMessage}`);
           continue;

@@ -9,7 +9,10 @@ const path    = require('path');
 const app       = express();
 const adminAuth = require('./middleware/adminAuth');
 
-app.use(cors({ origin: '*' }));
+app.use(cors({
+  origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
+}));
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
@@ -41,7 +44,7 @@ app.use('/api/dergesat',        require('./routes/dergesat'));
 app.use('/api/pagesat',         require('./routes/pagesat'));
 app.use('/api/adresat',         require('./routes/adresat'));
 app.use('/api/kuponat',         require('./routes/kuponat'));
-app.use('/api/upload',     require('./routes/upload'));
+app.use('/api/upload',     adminAuth, require('./routes/upload'));
 app.use('/api/user/auth',  require('./routes/user_auth'));
 app.use('/api/user',       require('./routes/user'));
 
@@ -79,7 +82,7 @@ async function runMigrations() {
       `INSERT INTO Adminet (emri, mbiemri, email, fjalekalimi_hash, roli) VALUES (?,?,?,?,?)`,
       ['Admin', 'Bookstore', 'admin@bookstore.com', hash, 'admin']
     );
-    console.log('[DB]     ✓  Default admin seeded  →  admin@bookstore.com / admin123');
+    console.log('[DB]     ✓  Default admin seeded. Ndryshoni fjalëkalimin pas hyrjes së parë.');
   }
 }
 
