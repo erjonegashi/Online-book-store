@@ -4,8 +4,9 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import { UserAuthProvider, useUserAuth } from './context/UserAuthContext';
 import { CartProvider } from './context/CartContext';
 
-import AdminLayout from './components/Layout';
-import UserLayout  from './components/UserLayout';
+import AdminLayout   from './components/Layout';
+import UserLayout    from './components/UserLayout';
+import ErrorBoundary from './components/ErrorBoundary';
 
 // ── Admin pages — lazy loaded ─────────────────────────────────────────────────
 const AdminLogin          = lazy(() => import('./pages/admin/Login'));
@@ -74,11 +75,12 @@ function UserGuard({ children }) {
 // ── App ───────────────────────────────────────────────────────────────────────
 export default function App() {
   return (
-    <AuthProvider>
-      <UserAuthProvider>
-        <CartProvider>
-          <BrowserRouter>
-            <Suspense fallback={<PageLoader />}>
+    <ErrorBoundary>
+      <AuthProvider>
+        <UserAuthProvider>
+          <CartProvider>
+            <BrowserRouter>
+              <Suspense fallback={<PageLoader />}>
               <Routes>
                 <Route path="/login"    element={<UserLogin />} />
                 <Route path="/register" element={<Register />} />
@@ -132,10 +134,11 @@ export default function App() {
 
                 <Route path="*" element={<Navigate to="/" replace />} />
               </Routes>
-            </Suspense>
-          </BrowserRouter>
-        </CartProvider>
-      </UserAuthProvider>
-    </AuthProvider>
+              </Suspense>
+            </BrowserRouter>
+          </CartProvider>
+        </UserAuthProvider>
+      </AuthProvider>
+    </ErrorBoundary>
   );
 }
