@@ -13,6 +13,10 @@ exports.getAll = (liber_id) => {
   return db.query(base + ' ORDER BY v.data DESC').then(([rows]) => rows);
 };
 
+exports.getById = (id) =>
+  db.query('SELECT * FROM Vleresimet WHERE vleresim_id = ?', [id])
+    .then(([rows]) => rows[0] ?? null);
+
 exports.create = ({ liber_id, klient_id, nota, komenti, statusi }) =>
   db.query(
     'INSERT INTO Vleresimet (liber_id,klient_id,nota,komenti,statusi) VALUES (?,?,?,?,?)',
