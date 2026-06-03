@@ -25,12 +25,17 @@ exports.getByPorosiWithDetails = (porosi_id) =>
     [porosi_id]
   ).then(([rows]) => rows);
 
-exports.create = ({ porosi_id, liber_id, sasia, cmimi_njesi }) => {
+exports.create = async ({ porosi_id, liber_id, sasia, cmimi_njesi }) => {
   const cmimi_total = sasia * cmimi_njesi;
-  return db.query(
+  const [result] = await db.query(
     'INSERT INTO Detajet_Porosise (porosi_id,liber_id,sasia,cmimi_njesi,cmimi_total) VALUES (?,?,?,?,?)',
     [porosi_id, liber_id, sasia, cmimi_njesi, cmimi_total]
-  ).then(([result]) => result.insertId);
+  );
+  await db.query(
+    'UPDATE Librat SET sasia_stok = GREATEST(0, sasia_stok - ?) WHERE liber_id = ?',
+    [sasia, liber_id]
+  );
+  return result.insertId;
 };
 
 exports.update = (id, { porosi_id, liber_id, sasia, cmimi_njesi }) => {

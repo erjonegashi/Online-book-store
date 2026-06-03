@@ -64,8 +64,8 @@ export default function BookDetail() {
             }).catch(() => {})
           );
         promises.push(
-          userApi.get('/vleresimet').then(r => {
-            setReviews(r.data.filter(v => String(v.liber_id) === String(id) && v.statusi === 'Approved'));
+          userApi.get(`/vleresimet?liber_id=${id}`).then(r => {
+            setReviews(r.data.filter(v => v.statusi === 'Approved'));
           }).catch(() => {})
         );
         return Promise.all(promises);

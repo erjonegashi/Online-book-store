@@ -1,7 +1,8 @@
 'use strict';
 
-const router = require('express').Router();
-const Libri  = require('../models/libri.model');
+const router    = require('express').Router();
+const Libri     = require('../models/libri.model');
+const adminAuth = require('../middleware/adminAuth');
 
 router.get('/', async (req, res) => {
   try {
@@ -18,7 +19,7 @@ router.get('/:id', async (req, res) => {
   } catch (err) { console.error(err); res.status(500).json({ error: 'Kërkesa dështoi. Provo përsëri.' }); }
 });
 
-router.post('/', async (req, res) => {
+router.post('/', adminAuth, async (req, res) => {
   const { titulli, cmimi } = req.body;
   if (!titulli || !cmimi)
     return res.status(400).json({ error: 'Fushat e detyrueshme mungojnë' });
@@ -28,14 +29,14 @@ router.post('/', async (req, res) => {
   } catch (err) { console.error(err); res.status(500).json({ error: 'Kërkesa dështoi. Provo përsëri.' }); }
 });
 
-router.put('/:id', async (req, res) => {
+router.put('/:id', adminAuth, async (req, res) => {
   try {
     await Libri.update(req.params.id, req.body);
     res.json({ message: 'Libri u azhurnua' });
   } catch (err) { console.error(err); res.status(500).json({ error: 'Kërkesa dështoi. Provo përsëri.' }); }
 });
 
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', adminAuth, async (req, res) => {
   try {
     await Libri.remove(req.params.id);
     res.json({ message: 'Libri u fshi' });

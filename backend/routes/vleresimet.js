@@ -5,8 +5,8 @@ const Vleresimi  = require('../models/vleresimi.model');
 const auth       = require('../middleware/auth');
 const adminAuth  = require('../middleware/adminAuth');
 
-router.get('/', async (_req, res) => {
-  try { res.json(await Vleresimi.getAll()); }
+router.get('/', async (req, res) => {
+  try { res.json(await Vleresimi.getAll(req.query.liber_id)); }
   catch (err) { console.error(err); res.status(500).json({ error: 'Kërkesa dështoi. Provo përsëri.' }); }
 });
 

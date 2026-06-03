@@ -45,6 +45,7 @@ app.use('/api/upload',     require('./routes/upload'));
 app.use('/api/user/auth',  require('./routes/user_auth'));
 app.use('/api/user',       require('./routes/user'));
 
+
 // ── Admin-protected routes ────────────────────────────────────────────────────
 app.use('/api/klientet',    adminAuth, require('./routes/klientet'));
 app.use('/api/botuesit',    adminAuth, require('./routes/botuesit'));
