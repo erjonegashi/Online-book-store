@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect } from 'react';
+import { createContext, useContext, useState, useEffect, useMemo } from 'react';
 
 const CartContext = createContext(null);
 
@@ -33,8 +33,8 @@ export function CartProvider({ children }) {
 
   const clearCart = () => setItems([]);
 
-  const total = items.reduce((s, i) => s + Number(i.cmimi) * i.qty, 0);
-  const count = items.reduce((s, i) => s + i.qty, 0);
+  const total = useMemo(() => items.reduce((s, i) => s + Number(i.cmimi) * i.qty, 0), [items]);
+  const count = useMemo(() => items.reduce((s, i) => s + i.qty, 0), [items]);
 
   return (
     <CartContext.Provider value={{ items, addToCart, removeFromCart, updateQty, clearCart, total, count }}>
