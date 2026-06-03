@@ -10,13 +10,15 @@ if (!process.env.JWT_SECRET) {
 }
 
 const jwtSecret = () => process.env.JWT_SECRET;
-const JWT_OPTS  = { expiresIn: '24h' };
+const REFRESH_TOKEN_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 
 module.exports = {
-  hashPassword:    pw           => bcrypt.hash(pw, 10),
-  comparePassword: (pw, hash)   => bcrypt.compare(pw, hash),
-  signToken:       payload      => jwt.sign(payload, jwtSecret(), JWT_OPTS),
-  verifyToken:     token        => jwt.verify(token, jwtSecret()),
-  generateToken:   ()           => crypto.randomBytes(32).toString('hex'),
-  tokenExpiresAt:  (hours = 1)  => new Date(Date.now() + hours * 60 * 60 * 1000),
+  hashPassword:         pw           => bcrypt.hash(pw, 10),
+  comparePassword:      (pw, hash)   => bcrypt.compare(pw, hash),
+  signToken:            payload      => jwt.sign(payload, jwtSecret(), { expiresIn: '15m' }),
+  verifyToken:          token        => jwt.verify(token, jwtSecret()),
+  generateToken:        ()           => crypto.randomBytes(32).toString('hex'),
+  generateRefreshToken: ()           => crypto.randomBytes(64).toString('hex'),
+  REFRESH_TOKEN_TTL_MS,
+  tokenExpiresAt:       (hours = 1)  => new Date(Date.now() + hours * 60 * 60 * 1000),
 };

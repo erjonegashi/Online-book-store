@@ -35,17 +35,25 @@ exports.register = async (req, res) => {
       email:   emailNorm,
       emri:    emri.trim(),
       mbiemri: mbiemri.trim(),
-      roli:    'admin',
+      role:    'admin',
     });
+
+    const refreshToken  = authService.generateRefreshToken();
+    const refreshExpiry = new Date(Date.now() + authService.REFRESH_TOKEN_TTL_MS);
+    await db.query(
+      'UPDATE Adminet SET refresh_token = ?, refresh_token_expiry = ? WHERE admin_id = ?',
+      [refreshToken, refreshExpiry, result.insertId]
+    );
 
     return res.status(201).json({
       token,
+      refreshToken,
       user: {
         id:      result.insertId,
         emri:    emri.trim(),
         mbiemri: mbiemri.trim(),
         email:   emailNorm,
-        roli:    'admin',
+        role:    'admin',
       },
     });
 
@@ -79,17 +87,25 @@ exports.login = async (req, res) => {
       email:   admin.email,
       emri:    admin.emri,
       mbiemri: admin.mbiemri,
-      roli:    'admin',
+      role:    'admin',
     });
+
+    const refreshToken  = authService.generateRefreshToken();
+    const refreshExpiry = new Date(Date.now() + authService.REFRESH_TOKEN_TTL_MS);
+    await db.query(
+      'UPDATE Adminet SET refresh_token = ?, refresh_token_expiry = ? WHERE admin_id = ?',
+      [refreshToken, refreshExpiry, admin.admin_id]
+    );
 
     return res.json({
       token,
+      refreshToken,
       user: {
         id:      admin.admin_id,
         emri:    admin.emri,
         mbiemri: admin.mbiemri,
         email:   admin.email,
-        roli:    'admin',
+        role:    'admin',
       },
     });
 
@@ -103,6 +119,52 @@ exports.login = async (req, res) => {
 
 exports.me = (req, res) => {
   res.json({ admin: req.admin });
+};
+
+// ── POST /api/admin/auth/refresh ──────────────────────────────────────────────
+
+exports.refresh = async (req, res) => {
+  const { refresh_token } = req.body;
+  if (!refresh_token)
+    return res.status(400).json({ error: 'Refresh token required.' });
+
+  try {
+    const [rows] = await db.query(
+      `SELECT admin_id, emri, mbiemri, email, refresh_token_expiry
+       FROM Adminet WHERE refresh_token = ?`,
+      [refresh_token]
+    );
+
+    if (!rows.length)
+      return res.status(401).json({ error: 'Invalid refresh token.' });
+
+    if (new Date() > new Date(rows[0].refresh_token_expiry))
+      return res.status(401).json({ error: 'Refresh token expired. Please log in again.' });
+
+    const a = rows[0];
+    const token = authService.signToken({
+      id: a.admin_id, email: a.email,
+      emri: a.emri, mbiemri: a.mbiemri, role: 'admin',
+    });
+
+    return res.json({ token });
+  } catch (err) {
+    console.error('[AdminAuth] Refresh error:', err.message);
+    return res.status(500).json({ error: 'Token refresh failed.' });
+  }
+};
+
+// ── POST /api/admin/auth/logout ───────────────────────────────────────────────
+
+exports.logout = async (req, res) => {
+  const { refresh_token } = req.body;
+  if (refresh_token) {
+    await db.query(
+      'UPDATE Adminet SET refresh_token = NULL, refresh_token_expiry = NULL WHERE refresh_token = ?',
+      [refresh_token]
+    ).catch(() => {});
+  }
+  return res.json({ message: 'Logged out successfully.' });
 };
 
 // ── POST /api/admin/auth/forgot-password ─────────────────────────────────────

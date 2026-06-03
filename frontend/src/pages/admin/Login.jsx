@@ -20,8 +20,8 @@ export default function AdminLogin() {
     setLoading(true);
     try {
       const { data } = await api.post('/admin/auth/login', form);
-      login(data.user, data.token);
-      navigate('/admin');
+      login(data.user, data.token, data.refreshToken);
+      navigate(data.user.role === 'admin' ? '/admin' : '/');
     } catch (err) {
       setError(err.response?.data?.error || 'Login failed. Please try again.');
     } finally {
@@ -110,11 +110,6 @@ export default function AdminLogin() {
               ) : 'Sign In to Admin Panel'}
             </button>
           </form>
-
-          <div className="mt-5 p-3.5 bg-amber-50 border border-amber-100 rounded-xl text-center">
-            <p className="text-xs text-amber-700 mb-1 font-semibold">Default credentials</p>
-            <p className="text-xs font-mono text-amber-800">admin@bookstore.com / admin123</p>
-          </div>
 
           <div className="mt-5 flex items-center gap-3">
             <div className="flex-1 h-px bg-gray-200" />

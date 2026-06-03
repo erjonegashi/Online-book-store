@@ -1,0 +1,5 @@
+ALTER TABLE Klientet ADD COLUMN refresh_token        VARCHAR(128) DEFAULT NULL;
+ALTER TABLE Klientet ADD COLUMN refresh_token_expiry DATETIME    DEFAULT NULL;
+
+ALTER TABLE Adminet  ADD COLUMN refresh_token        VARCHAR(128) DEFAULT NULL;
+ALTER TABLE Adminet  ADD COLUMN refresh_token_expiry DATETIME    DEFAULT NULL;
