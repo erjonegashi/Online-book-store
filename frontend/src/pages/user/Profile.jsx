@@ -402,6 +402,15 @@ export default function Profile() {
             <form onSubmit={handlePasswordChange} className="space-y-4">
               <div>
                 <label className="block text-xs font-semibold text-gray-500 mb-1.5 uppercase tracking-wide">
+                  Current Password *
+                </label>
+                <input type="password" required
+                  value={pwForm.current} placeholder="Your current password"
+                  onChange={e => setPwForm(f => ({ ...f, current: e.target.value }))}
+                  className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 mb-1.5 uppercase tracking-wide">
                   New Password *
                 </label>
                 <input type="password" required minLength={6}

@@ -35,12 +35,20 @@ exports.register = async (req, res) => {
 
     const token = authService.signToken({
       id: result.insertId, email: emailNorm,
-      emri: emri.trim(), mbiemri: mbiemri.trim(),
+      emri: emri.trim(), mbiemri: mbiemri.trim(), role: 'user',
     });
+
+    const refreshToken  = authService.generateRefreshToken();
+    const refreshExpiry = new Date(Date.now() + authService.REFRESH_TOKEN_TTL_MS);
+    await db.query(
+      'UPDATE Klientet SET refresh_token = ?, refresh_token_expiry = ? WHERE klient_id = ?',
+      [refreshToken, refreshExpiry, result.insertId]
+    );
 
     return res.status(201).json({
       token,
-      user: { id: result.insertId, emri: emri.trim(), mbiemri: mbiemri.trim(), email: emailNorm },
+      refreshToken,
+      user: { id: result.insertId, emri: emri.trim(), mbiemri: mbiemri.trim(), email: emailNorm, role: 'user' },
     });
 
   } catch (err) {
@@ -70,12 +78,20 @@ exports.login = async (req, res) => {
 
     const token = authService.signToken({
       id: user.klient_id, email: user.email,
-      emri: user.emri, mbiemri: user.mbiemri,
+      emri: user.emri, mbiemri: user.mbiemri, role: 'user',
     });
+
+    const refreshToken  = authService.generateRefreshToken();
+    const refreshExpiry = new Date(Date.now() + authService.REFRESH_TOKEN_TTL_MS);
+    await db.query(
+      'UPDATE Klientet SET refresh_token = ?, refresh_token_expiry = ? WHERE klient_id = ?',
+      [refreshToken, refreshExpiry, user.klient_id]
+    );
 
     return res.json({
       token,
-      user: { id: user.klient_id, emri: user.emri, mbiemri: user.mbiemri, email: user.email },
+      refreshToken,
+      user: { id: user.klient_id, emri: user.emri, mbiemri: user.mbiemri, email: user.email, role: 'user' },
     });
 
   } catch (err) {
@@ -155,6 +171,52 @@ exports.resetPassword = async (req, res) => {
     console.error('[Auth] resetPassword error:', err.message);
     return res.status(500).json({ error: 'Reset failed. Please try again.' });
   }
+};
+
+// ── POST /api/auth/refresh ────────────────────────────────────────────────────
+
+exports.refresh = async (req, res) => {
+  const { refresh_token } = req.body;
+  if (!refresh_token)
+    return res.status(400).json({ error: 'Refresh token required.' });
+
+  try {
+    const [rows] = await db.query(
+      `SELECT klient_id, emri, mbiemri, email, refresh_token_expiry
+       FROM Klientet WHERE refresh_token = ?`,
+      [refresh_token]
+    );
+
+    if (!rows.length)
+      return res.status(401).json({ error: 'Invalid refresh token.' });
+
+    if (new Date() > new Date(rows[0].refresh_token_expiry))
+      return res.status(401).json({ error: 'Refresh token expired. Please log in again.' });
+
+    const k = rows[0];
+    const token = authService.signToken({
+      id: k.klient_id, email: k.email,
+      emri: k.emri, mbiemri: k.mbiemri, role: 'user',
+    });
+
+    return res.json({ token });
+  } catch (err) {
+    console.error('[Auth] Refresh error:', err.message);
+    return res.status(500).json({ error: 'Token refresh failed.' });
+  }
+};
+
+// ── POST /api/auth/logout ─────────────────────────────────────────────────────
+
+exports.logout = async (req, res) => {
+  const { refresh_token } = req.body;
+  if (refresh_token) {
+    await db.query(
+      'UPDATE Klientet SET refresh_token = NULL, refresh_token_expiry = NULL WHERE refresh_token = ?',
+      [refresh_token]
+    ).catch(() => {});
+  }
+  return res.json({ message: 'Logged out successfully.' });
 };
 
 // ── GET /api/auth/me ──────────────────────────────────────────────────────────

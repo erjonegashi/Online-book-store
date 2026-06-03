@@ -21,7 +21,12 @@ router.post('/', auth, async (req, res) => {
   try {
     const detaji_id = await Detaji.create(req.body);
     res.status(201).json({ detaji_id, message: 'Detaji u shtua' });
-  } catch (err) { console.error(err); res.status(500).json({ error: 'Kërkesa dështoi. Provo përsëri.' }); }
+  } catch (err) {
+    if (err.status === 400 || err.status === 404)
+      return res.status(err.status).json({ error: err.message });
+    console.error(err);
+    res.status(500).json({ error: 'Kërkesa dështoi. Provo përsëri.' });
+  }
 });
 
 router.put('/:id', async (req, res) => {

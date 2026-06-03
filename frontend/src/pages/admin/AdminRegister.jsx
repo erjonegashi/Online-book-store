@@ -44,7 +44,7 @@ export default function AdminRegister() {
     try {
       const { confirmPassword, ...payload } = form;
       const { data } = await api.post('/admin/auth/register', payload);
-      login(data.user, data.token);
+      login(data.user, data.token, data.refreshToken);
       navigate('/admin');
     } catch (err) {
       const msg = err.response?.data?.error || '';
