@@ -7,9 +7,11 @@ const userApi = axios.create({
   withCredentials: true,
 });
 
+let _userToken = null;
+export const setUserToken = (token) => { _userToken = token; };
+
 userApi.interceptors.request.use(config => {
-  const token = localStorage.getItem('user_token');
-  if (token) config.headers.Authorization = `Bearer ${token}`;
+  if (_userToken) config.headers.Authorization = `Bearer ${_userToken}`;
   return config;
 });
 
@@ -51,13 +53,13 @@ userApi.interceptors.response.use(
         if (!res.ok) throw new Error('Refresh failed');
 
         const { token } = await res.json();
-        localStorage.setItem('user_token', token);
+        _userToken = token;
         orig.headers.Authorization = `Bearer ${token}`;
         flush(null, token);
         return userApi(orig);
       } catch (e) {
         flush(e, null);
-        localStorage.removeItem('user_token');
+        _userToken = null;
         localStorage.removeItem('user_data');
         window.location.href = '/login';
         return Promise.reject(e);

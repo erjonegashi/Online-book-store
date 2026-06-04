@@ -7,9 +7,11 @@ const api = axios.create({
   withCredentials: true,
 });
 
+let _adminToken = null;
+export const setAdminToken = (token) => { _adminToken = token; };
+
 api.interceptors.request.use(config => {
-  const token = localStorage.getItem('token');
-  if (token) config.headers.Authorization = `Bearer ${token}`;
+  if (_adminToken) config.headers.Authorization = `Bearer ${_adminToken}`;
   return config;
 });
 
@@ -52,13 +54,13 @@ api.interceptors.response.use(
         if (!res.ok) throw new Error('Refresh failed');
 
         const { token } = await res.json();
-        localStorage.setItem('token', token);
+        _adminToken = token;
         orig.headers.Authorization = `Bearer ${token}`;
         flush(null, token);
         return api(orig);
       } catch (e) {
         flush(e, null);
-        localStorage.removeItem('token');
+        _adminToken = null;
         localStorage.removeItem('user');
         window.location.href = '/admin/login';
         return Promise.reject(e);

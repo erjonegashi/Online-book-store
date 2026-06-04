@@ -46,7 +46,6 @@ function parseSql(content) {
 async function runMigrations(db) {
   await db.query("SET NAMES 'utf8mb4' COLLATE 'utf8mb4_unicode_ci'");
 
-  // Migration tracking table
   await db.query(`
     CREATE TABLE IF NOT EXISTS schema_migrations (
       id         INT AUTO_INCREMENT PRIMARY KEY,

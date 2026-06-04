@@ -34,7 +34,6 @@ exports.update = async (req, res) => {
   if (statusi && !VALID_STATUSET.includes(statusi))
     return res.status(400).json({ error: `Statusi "${statusi}" nuk është i vlefshëm` });
   try {
-    // Merr të dhënat ekzistuese dhe bashkoji me ndryshimet (partial update)
     const existing = await Vleresimi.getById(req.params.id);
     if (!existing) return res.status(404).json({ error: 'Vlerësimi nuk u gjet' });
     await Vleresimi.update(req.params.id, { ...existing, ...req.body });

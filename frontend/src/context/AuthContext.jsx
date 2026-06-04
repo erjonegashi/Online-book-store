@@ -1,4 +1,5 @@
 import { createContext, useContext, useState } from 'react';
+import { setAdminToken } from '../api/axios';
 
 const AuthContext = createContext(null);
 
@@ -13,7 +14,7 @@ export function AuthProvider({ children }) {
 
   const login = (userData, token) => {
     const u = { ...userData, role: 'admin' };
-    localStorage.setItem('token', token);
+    setAdminToken(token);
     localStorage.setItem('user', JSON.stringify(u));
     setUser(u);
   };
@@ -24,7 +25,7 @@ export function AuthProvider({ children }) {
       `${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/admin/auth/logout`,
       { method: 'POST', credentials: 'include' }
     ).catch(() => {});
-    localStorage.removeItem('token');
+    setAdminToken(null);
     localStorage.removeItem('user');
     setUser(null);
   };

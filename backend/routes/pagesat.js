@@ -5,7 +5,6 @@ const auth      = require('../middleware/auth');
 const adminAuth = require('../middleware/adminAuth');
 const ctrl      = require('../controllers/pagesa.controller');
 
-// admin sheh të gjitha pagesat
 router.get('/',    adminAuth, ctrl.getAll);
 router.get('/:id', auth,      ctrl.getById);
 router.post('/',   auth,      ctrl.create);

@@ -15,8 +15,6 @@ const cookieOpts  = () => ({
   path:     '/',
 });
 
-// ── POST /api/admin/auth/register ─────────────────────────────────────────────
-
 exports.register = async (req, res) => {
   const { emri, mbiemri, email, password } = req.body;
   const emailNorm = normalise(email);
@@ -56,8 +54,6 @@ exports.register = async (req, res) => {
     return res.status(500).json({ error: 'Registration failed. Please try again.' });
   }
 };
-
-// ── POST /api/admin/auth/login ────────────────────────────────────────────────
 
 exports.login = async (req, res) => {
   const { email, password } = req.body;
@@ -107,13 +103,9 @@ exports.login = async (req, res) => {
   }
 };
 
-// ── GET /api/admin/auth/me ────────────────────────────────────────────────────
-
 exports.me = (req, res) => {
   res.json({ admin: req.admin });
 };
-
-// ── POST /api/admin/auth/refresh ──────────────────────────────────────────────
 
 exports.refresh = async (req, res) => {
   const refresh_token = req.cookies?.[COOKIE_NAME];
@@ -139,7 +131,6 @@ exports.refresh = async (req, res) => {
       emri: a.emri, mbiemri: a.mbiemri, role: 'admin',
     });
 
-    // rotate refresh token
     const newRefreshToken  = authService.generateRefreshToken();
     const newRefreshExpiry = new Date(Date.now() + authService.REFRESH_TOKEN_TTL_MS);
     await db.query(
@@ -155,8 +146,6 @@ exports.refresh = async (req, res) => {
   }
 };
 
-// ── POST /api/admin/auth/logout ───────────────────────────────────────────────
-
 exports.logout = async (req, res) => {
   const refresh_token = req.cookies?.[COOKIE_NAME];
   if (refresh_token) {
@@ -168,8 +157,6 @@ exports.logout = async (req, res) => {
   res.clearCookie(COOKIE_NAME, { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'strict', path: '/' });
   return res.json({ message: 'Logged out successfully.' });
 };
-
-// ── POST /api/admin/auth/forgot-password ─────────────────────────────────────
 
 exports.forgotPassword = async (req, res) => {
   const email    = normalise(req.body.email);
@@ -183,7 +170,7 @@ exports.forgotPassword = async (req, res) => {
 
     if (rows.length) {
       const token  = authService.generateToken();
-      const expiry = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
+      const expiry = new Date(Date.now() + 15 * 60 * 1000);
 
       await db.query(
         'UPDATE Adminet SET reset_token = ?, reset_token_expiry = ? WHERE admin_id = ?',
@@ -205,8 +192,6 @@ exports.forgotPassword = async (req, res) => {
     return res.status(500).json({ error: 'Request failed. Please try again.' });
   }
 };
-
-// ── PUT /api/admin/auth/reset-password ────────────────────────────────────────
 
 exports.resetPassword = async (req, res) => {
   const { token, newPassword } = req.body;
@@ -244,8 +229,6 @@ exports.resetPassword = async (req, res) => {
     return res.status(500).json({ error: 'Reset failed. Please try again.' });
   }
 };
-
-// ── PUT /api/admin/auth/change-password ───────────────────────────────────────
 
 exports.changePassword = async (req, res) => {
   const { currentPassword, newPassword } = req.body;

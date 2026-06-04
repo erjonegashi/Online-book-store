@@ -29,4 +29,3 @@ export default function NexusLogo({ size = 32, className = '' }) {
     </svg>
   );
 }
-//nexus logo component

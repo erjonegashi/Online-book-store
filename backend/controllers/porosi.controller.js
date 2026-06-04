@@ -48,7 +48,6 @@ exports.update = async (req, res) => {
   if (metoda_pageses && !VALID_METODAT.includes(metoda_pageses))
     return res.status(400).json({ error: `Metoda "${metoda_pageses}" nuk është e vlefshme` });
   try {
-    // Merr të dhënat ekzistuese dhe bashkoji me ndryshimet e dërguara (partial update)
     const existing = await Porosi.getById(req.params.id);
     if (!existing) return res.status(404).json({ error: 'Porosia nuk u gjet' });
     await Porosi.update(req.params.id, { ...existing, ...req.body });
