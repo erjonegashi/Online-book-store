@@ -9,8 +9,18 @@ if (!process.env.JWT_SECRET) {
   process.exit(1);
 }
 
+const JWT_MIN_SECRET_LENGTH = 32;
+if (process.env.JWT_SECRET.length < JWT_MIN_SECRET_LENGTH) {
+  console.error(`[FATAL] JWT_SECRET is too short (min ${JWT_MIN_SECRET_LENGTH} chars). Refusing to start.`);
+  process.exit(1);
+}
+
 const jwtSecret = () => process.env.JWT_SECRET;
 const REFRESH_TOKEN_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+
+// SHA-256 hash — ruaj në DB, jo plaintext
+const hashRefreshToken = token =>
+  crypto.createHash('sha256').update(token).digest('hex');
 
 module.exports = {
   hashPassword:         pw           => bcrypt.hash(pw, 10),
@@ -19,6 +29,7 @@ module.exports = {
   verifyToken:          token        => jwt.verify(token, jwtSecret()),
   generateToken:        ()           => crypto.randomBytes(32).toString('hex'),
   generateRefreshToken: ()           => crypto.randomBytes(64).toString('hex'),
+  hashRefreshToken,
   REFRESH_TOKEN_TTL_MS,
   tokenExpiresAt:       (hours = 1)  => new Date(Date.now() + hours * 60 * 60 * 1000),
 };

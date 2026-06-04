@@ -2,7 +2,10 @@ import axios from 'axios';
 
 const BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
-const userApi = axios.create({ baseURL: `${BASE}/api` });
+const userApi = axios.create({
+  baseURL:         `${BASE}/api`,
+  withCredentials: true,
+});
 
 userApi.interceptors.request.use(config => {
   const token = localStorage.getItem('user_token');
@@ -26,15 +29,6 @@ userApi.interceptors.response.use(
     if (err.response?.status === 401 && !orig._retry) {
       orig._retry = true;
 
-      const rt = localStorage.getItem('user_refresh_token');
-      if (!rt) {
-        localStorage.removeItem('user_token');
-        localStorage.removeItem('user_refresh_token');
-        localStorage.removeItem('user_data');
-        window.location.href = '/login';
-        return Promise.reject(err);
-      }
-
       if (isRefreshing) {
         return new Promise((resolve, reject) => queue.push({ resolve, reject }))
           .then(token => { orig.headers.Authorization = `Bearer ${token}`; return userApi(orig); })
@@ -44,10 +38,10 @@ userApi.interceptors.response.use(
       isRefreshing = true;
 
       try {
+        // cookie user_rt dërgohet automatikisht nga browser (withCredentials)
         const res = await fetch(`${BASE}/api/auth/refresh`, {
-          method:  'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body:    JSON.stringify({ refresh_token: rt }),
+          method:      'POST',
+          credentials: 'include',
         });
 
         if (!res.ok) throw new Error('Refresh failed');
@@ -60,7 +54,6 @@ userApi.interceptors.response.use(
       } catch (e) {
         flush(e, null);
         localStorage.removeItem('user_token');
-        localStorage.removeItem('user_refresh_token');
         localStorage.removeItem('user_data');
         window.location.href = '/login';
         return Promise.reject(e);

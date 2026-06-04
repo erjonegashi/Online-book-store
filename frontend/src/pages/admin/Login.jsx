@@ -20,7 +20,7 @@ export default function AdminLogin() {
     setLoading(true);
     try {
       const { data } = await api.post('/admin/auth/login', form);
-      login(data.user, data.token, data.refreshToken);
+      login(data.user, data.token);
       navigate(data.user.role === 'admin' ? '/admin' : '/');
     } catch (err) {
       setError(err.response?.data?.error || 'Login failed. Please try again.');

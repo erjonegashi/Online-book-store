@@ -1,6 +1,3 @@
-<<<<<<< HEAD
-module.exports = { applyMigrations: async () => {} };
-=======
 'use strict';
 
 const path  = require('path');
@@ -126,4 +123,3 @@ if (require.main === module) {
 }
 
 module.exports = { runMigrations };
->>>>>>> 1718d9b34ed05f1b70c2bdc726beafeace2fd83f

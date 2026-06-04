@@ -65,7 +65,7 @@ export default function Register() {
       const { confirmPassword, ...payload } = form;
       const { data } = await userApi.post('/auth/register', payload);
       // Auto-login immediately — no email verification required
-      login(data.user, data.token, data.refreshToken);
+      login(data.user, data.token);
       navigate('/', { replace: true });
     } catch (err) {
       const msg    = err.response?.data?.error || '';
