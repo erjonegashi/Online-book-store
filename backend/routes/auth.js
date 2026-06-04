@@ -1,10 +1,36 @@
 'use strict';
 
-const router = require('express').Router();
-const ctrl   = require('../controllers/auth.controller');
+const router    = require('express').Router();
+const rateLimit = require('express-rate-limit');
+const ctrl      = require('../controllers/auth.controller');
 
-router.post('/register', ctrl.register);
-router.post('/login',    ctrl.login);
+const loginLimiter = rateLimit({
+  windowMs:         15 * 60 * 1000, // 15 minuta
+  max:              10,
+  standardHeaders:  true,
+  legacyHeaders:    false,
+  message:          { error: 'Too many login attempts. Please try again in 15 minutes.' },
+});
+
+const registerLimiter = rateLimit({
+  windowMs:         60 * 60 * 1000, // 1 orë
+  max:              5,
+  standardHeaders:  true,
+  legacyHeaders:    false,
+  message:          { error: 'Too many registration attempts. Please try again in 1 hour.' },
+});
+
+const refreshLimiter = rateLimit({
+  windowMs:         15 * 60 * 1000,
+  max:              30,
+  standardHeaders:  true,
+  legacyHeaders:    false,
+  message:          { error: 'Too many refresh attempts. Please try again later.' },
+});
+
+router.post('/register', registerLimiter, ctrl.register);
+router.post('/login',    loginLimiter,    ctrl.login);
+router.post('/refresh',  refreshLimiter,  ctrl.refresh);
+router.post('/logout',                   ctrl.logout);
 
 module.exports = router;
-//backend routes 

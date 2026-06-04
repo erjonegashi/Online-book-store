@@ -2,21 +2,38 @@
 
 require('dotenv').config();
 
-const express = require('express');
-const cors    = require('cors');
-const path    = require('path');
+const express      = require('express');
+const cors         = require('cors');
+const path         = require('path');
+const cookieParser = require('cookie-parser');
+const helmet       = require('helmet');
+const rateLimit    = require('express-rate-limit');
 
 const app       = express();
 const adminAuth = require('./middleware/adminAuth');
 
-app.use(cors({ origin: '*' }));
+// trust first proxy (nginx/load balancer) so rate limiter sees real client IP
+app.set('trust proxy', 1);
+
+app.use(helmet());
+
+app.use(cors({
+  origin:      process.env.FRONTEND_URL || 'http://localhost:5173',
+  methods:     ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
+  credentials: true,
+}));
+app.use(cookieParser());
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
-app.use((_req, res, next) => {
-  res.setHeader('Content-Type', 'application/json; charset=utf-8');
-  next();
-});
+// global fallback limiter — parandalon flood mbi çdo endpoint
+app.use(rateLimit({
+  windowMs:        15 * 60 * 1000,
+  max:             500,
+  standardHeaders: true,
+  legacyHeaders:   false,
+  message:         { error: 'Too many requests. Please slow down.' },
+}));
 
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
@@ -41,9 +58,10 @@ app.use('/api/dergesat',        require('./routes/dergesat'));
 app.use('/api/pagesat',         require('./routes/pagesat'));
 app.use('/api/adresat',         require('./routes/adresat'));
 app.use('/api/kuponat',         require('./routes/kuponat'));
-app.use('/api/upload',     require('./routes/upload'));
+app.use('/api/upload',     adminAuth, require('./routes/upload'));
 app.use('/api/user/auth',  require('./routes/user_auth'));
 app.use('/api/user',       require('./routes/user'));
+
 
 // ── Admin-protected routes ────────────────────────────────────────────────────
 app.use('/api/klientet',    adminAuth, require('./routes/klientet'));
@@ -73,12 +91,18 @@ async function runMigrations() {
   // Seed default admin account if the table is empty after migrations
   const [[{ cnt }]] = await db.query('SELECT COUNT(*) AS cnt FROM Adminet');
   if (cnt === 0) {
-    const hash = await bcrypt.hash('admin123', 10);
+    const seedPw = process.env.ADMIN_SEED_PASSWORD;
+    if (!seedPw || seedPw.length < 12) {
+      console.error('[DB]     ✗  ADMIN_SEED_PASSWORD nuk është vendosur ose është shumë i shkurtër (min 12 karaktere).');
+      console.error('[DB]        Shto ADMIN_SEED_PASSWORD në .env dhe rinis serverin.');
+      process.exit(1);
+    }
+    const hash = await bcrypt.hash(seedPw, 10);
     await db.query(
       `INSERT INTO Adminet (emri, mbiemri, email, fjalekalimi_hash, roli) VALUES (?,?,?,?,?)`,
       ['Admin', 'Bookstore', 'admin@bookstore.com', hash, 'admin']
     );
-    console.log('[DB]     ✓  Default admin seeded  →  admin@bookstore.com / admin123');
+    console.log('[DB]     ✓  Default admin seeded me fjalëkalimin nga ADMIN_SEED_PASSWORD.');
   }
 }
 

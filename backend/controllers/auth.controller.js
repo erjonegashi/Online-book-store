@@ -7,6 +7,15 @@ const UBT_DOMAIN = '@ubt-uni.net';
 const isUBT      = email => typeof email === 'string' && email.toLowerCase().endsWith(UBT_DOMAIN);
 const normalise  = raw   => (raw || '').toLowerCase().trim();
 
+const COOKIE_NAME = 'user_rt';
+const cookieOpts  = () => ({
+  httpOnly: true,
+  secure:   process.env.NODE_ENV === 'production',
+  sameSite: 'strict',
+  maxAge:   authService.REFRESH_TOKEN_TTL_MS,
+  path:     '/',
+});
+
 // ── POST /api/auth/register ───────────────────────────────────────────────────
 
 exports.register = async (req, res) => {
@@ -35,12 +44,20 @@ exports.register = async (req, res) => {
 
     const token = authService.signToken({
       id: result.insertId, email: emailNorm,
-      emri: emri.trim(), mbiemri: mbiemri.trim(),
+      emri: emri.trim(), mbiemri: mbiemri.trim(), role: 'user',
     });
 
+    const refreshToken  = authService.generateRefreshToken();
+    const refreshExpiry = new Date(Date.now() + authService.REFRESH_TOKEN_TTL_MS);
+    await db.query(
+      'UPDATE Klientet SET refresh_token = ?, refresh_token_expiry = ? WHERE klient_id = ?',
+      [authService.hashRefreshToken(refreshToken), refreshExpiry, result.insertId]
+    );
+
+    res.cookie(COOKIE_NAME, refreshToken, cookieOpts());
     return res.status(201).json({
       token,
-      user: { id: result.insertId, emri: emri.trim(), mbiemri: mbiemri.trim(), email: emailNorm },
+      user: { id: result.insertId, emri: emri.trim(), mbiemri: mbiemri.trim(), email: emailNorm, role: 'user' },
     });
 
   } catch (err) {
@@ -70,12 +87,20 @@ exports.login = async (req, res) => {
 
     const token = authService.signToken({
       id: user.klient_id, email: user.email,
-      emri: user.emri, mbiemri: user.mbiemri,
+      emri: user.emri, mbiemri: user.mbiemri, role: 'user',
     });
 
+    const refreshToken  = authService.generateRefreshToken();
+    const refreshExpiry = new Date(Date.now() + authService.REFRESH_TOKEN_TTL_MS);
+    await db.query(
+      'UPDATE Klientet SET refresh_token = ?, refresh_token_expiry = ? WHERE klient_id = ?',
+      [authService.hashRefreshToken(refreshToken), refreshExpiry, user.klient_id]
+    );
+
+    res.cookie(COOKIE_NAME, refreshToken, cookieOpts());
     return res.json({
       token,
-      user: { id: user.klient_id, emri: user.emri, mbiemri: user.mbiemri, email: user.email },
+      user: { id: user.klient_id, emri: user.emri, mbiemri: user.mbiemri, email: user.email, role: 'user' },
     });
 
   } catch (err) {
@@ -88,7 +113,7 @@ exports.login = async (req, res) => {
 
 exports.forgotPassword = async (req, res) => {
   const email    = normalise(req.body.email);
-  const SAFE_MSG = 'If an account with that email exists, a reset link has been logged to the server console.';
+  const SAFE_MSG = 'If an account with that email exists, you will receive a password reset link shortly.';
 
   if (!email)
     return res.status(400).json({ error: 'Email is required.' });
@@ -102,13 +127,15 @@ exports.forgotPassword = async (req, res) => {
 
       await db.query(
         'UPDATE Klientet SET reset_token = ?, reset_token_expiry = ? WHERE klient_id = ?',
-        [token, expiry, rows[0].klient_id]
+        [authService.hashRefreshToken(token), expiry, rows[0].klient_id]
       );
 
       const link = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/reset-password?token=${token}`;
-      console.log(`[USER RESET] Link  : ${link}`);
-      console.log(`[USER RESET] Expiry: ${expiry.toISOString()}`);
-      console.log('Password reset link:', link);
+      // në production zëvendëso me email — mos logo token-in kurrë në prod
+      if (process.env.NODE_ENV !== 'production') {
+        console.log(`[USER RESET] Link  : ${link}`);
+        console.log(`[USER RESET] Expiry: ${expiry.toISOString()}`);
+      }
     }
 
     return res.json({ message: SAFE_MSG });
@@ -133,7 +160,7 @@ exports.resetPassword = async (req, res) => {
   try {
     const [rows] = await db.query(
       'SELECT klient_id, reset_token_expiry FROM Klientet WHERE reset_token = ?',
-      [token]
+      [authService.hashRefreshToken(token)]
     );
 
     if (!rows.length)
@@ -155,6 +182,62 @@ exports.resetPassword = async (req, res) => {
     console.error('[Auth] resetPassword error:', err.message);
     return res.status(500).json({ error: 'Reset failed. Please try again.' });
   }
+};
+
+// ── POST /api/auth/refresh ────────────────────────────────────────────────────
+
+exports.refresh = async (req, res) => {
+  const refresh_token = req.cookies?.[COOKIE_NAME];
+  if (!refresh_token)
+    return res.status(401).json({ error: 'Refresh token required.' });
+
+  try {
+    const [rows] = await db.query(
+      `SELECT klient_id, emri, mbiemri, email, refresh_token_expiry
+       FROM Klientet WHERE refresh_token = ?`,
+      [authService.hashRefreshToken(refresh_token)]
+    );
+
+    if (!rows.length)
+      return res.status(401).json({ error: 'Invalid refresh token.' });
+
+    if (new Date() > new Date(rows[0].refresh_token_expiry))
+      return res.status(401).json({ error: 'Refresh token expired. Please log in again.' });
+
+    const k = rows[0];
+    const token = authService.signToken({
+      id: k.klient_id, email: k.email,
+      emri: k.emri, mbiemri: k.mbiemri, role: 'user',
+    });
+
+    // rotate refresh token
+    const newRefreshToken  = authService.generateRefreshToken();
+    const newRefreshExpiry = new Date(Date.now() + authService.REFRESH_TOKEN_TTL_MS);
+    await db.query(
+      'UPDATE Klientet SET refresh_token = ?, refresh_token_expiry = ? WHERE klient_id = ?',
+      [authService.hashRefreshToken(newRefreshToken), newRefreshExpiry, k.klient_id]
+    );
+
+    res.cookie(COOKIE_NAME, newRefreshToken, cookieOpts());
+    return res.json({ token });
+  } catch (err) {
+    console.error('[Auth] Refresh error:', err.message);
+    return res.status(500).json({ error: 'Token refresh failed.' });
+  }
+};
+
+// ── POST /api/auth/logout ─────────────────────────────────────────────────────
+
+exports.logout = async (req, res) => {
+  const refresh_token = req.cookies?.[COOKIE_NAME];
+  if (refresh_token) {
+    await db.query(
+      'UPDATE Klientet SET refresh_token = NULL, refresh_token_expiry = NULL WHERE refresh_token = ?',
+      [authService.hashRefreshToken(refresh_token)]
+    ).catch(() => {});
+  }
+  res.clearCookie(COOKIE_NAME, { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'strict', path: '/' });
+  return res.json({ message: 'Logged out successfully.' });
 };
 
 // ── GET /api/auth/me ──────────────────────────────────────────────────────────

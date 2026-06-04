@@ -26,7 +26,8 @@ export default function UserLogin() {
       const { data } = await userApi.post('/auth/login', form);
       login(data.user, data.token);
       setToast({ message: `Welcome back, ${data.user.emri}!`, type: 'success' });
-      setTimeout(() => navigate(from, { replace: true }), 1200);
+      const dest = data.user.role === 'admin' ? '/admin' : from;
+      setTimeout(() => navigate(dest, { replace: true }), 1200);
     } catch (err) {
       const data = err.response?.data || {};
       setError(data.error || 'Something went wrong. Please try again.');

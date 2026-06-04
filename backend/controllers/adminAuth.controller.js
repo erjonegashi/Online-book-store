@@ -6,6 +6,15 @@ const authService = require('../services/auth.service');
 const VALID_EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const normalise   = raw => (raw || '').toLowerCase().trim();
 
+const COOKIE_NAME = 'admin_rt';
+const cookieOpts  = () => ({
+  httpOnly: true,
+  secure:   process.env.NODE_ENV === 'production',
+  sameSite: 'strict',
+  maxAge:   authService.REFRESH_TOKEN_TTL_MS,
+  path:     '/',
+});
+
 // ── POST /api/admin/auth/register ─────────────────────────────────────────────
 
 exports.register = async (req, res) => {
@@ -35,9 +44,17 @@ exports.register = async (req, res) => {
       email:   emailNorm,
       emri:    emri.trim(),
       mbiemri: mbiemri.trim(),
-      roli:    'admin',
+      role:    'admin',
     });
 
+    const refreshToken  = authService.generateRefreshToken();
+    const refreshExpiry = new Date(Date.now() + authService.REFRESH_TOKEN_TTL_MS);
+    await db.query(
+      'UPDATE Adminet SET refresh_token = ?, refresh_token_expiry = ? WHERE admin_id = ?',
+      [authService.hashRefreshToken(refreshToken), refreshExpiry, result.insertId]
+    );
+
+    res.cookie(COOKIE_NAME, refreshToken, cookieOpts());
     return res.status(201).json({
       token,
       user: {
@@ -45,7 +62,7 @@ exports.register = async (req, res) => {
         emri:    emri.trim(),
         mbiemri: mbiemri.trim(),
         email:   emailNorm,
-        roli:    'admin',
+        role:    'admin',
       },
     });
 
@@ -79,9 +96,17 @@ exports.login = async (req, res) => {
       email:   admin.email,
       emri:    admin.emri,
       mbiemri: admin.mbiemri,
-      roli:    'admin',
+      role:    'admin',
     });
 
+    const refreshToken  = authService.generateRefreshToken();
+    const refreshExpiry = new Date(Date.now() + authService.REFRESH_TOKEN_TTL_MS);
+    await db.query(
+      'UPDATE Adminet SET refresh_token = ?, refresh_token_expiry = ? WHERE admin_id = ?',
+      [authService.hashRefreshToken(refreshToken), refreshExpiry, admin.admin_id]
+    );
+
+    res.cookie(COOKIE_NAME, refreshToken, cookieOpts());
     return res.json({
       token,
       user: {
@@ -89,7 +114,7 @@ exports.login = async (req, res) => {
         emri:    admin.emri,
         mbiemri: admin.mbiemri,
         email:   admin.email,
-        roli:    'admin',
+        role:    'admin',
       },
     });
 
@@ -105,11 +130,67 @@ exports.me = (req, res) => {
   res.json({ admin: req.admin });
 };
 
+// ── POST /api/admin/auth/refresh ──────────────────────────────────────────────
+
+exports.refresh = async (req, res) => {
+  const refresh_token = req.cookies?.[COOKIE_NAME];
+  if (!refresh_token)
+    return res.status(401).json({ error: 'Refresh token required.' });
+
+  try {
+    const [rows] = await db.query(
+      `SELECT admin_id, emri, mbiemri, email, refresh_token_expiry
+       FROM Adminet WHERE refresh_token = ?`,
+      [authService.hashRefreshToken(refresh_token)]
+    );
+
+    if (!rows.length)
+      return res.status(401).json({ error: 'Invalid refresh token.' });
+
+    if (new Date() > new Date(rows[0].refresh_token_expiry))
+      return res.status(401).json({ error: 'Refresh token expired. Please log in again.' });
+
+    const a = rows[0];
+    const token = authService.signToken({
+      id: a.admin_id, email: a.email,
+      emri: a.emri, mbiemri: a.mbiemri, role: 'admin',
+    });
+
+    // rotate refresh token
+    const newRefreshToken  = authService.generateRefreshToken();
+    const newRefreshExpiry = new Date(Date.now() + authService.REFRESH_TOKEN_TTL_MS);
+    await db.query(
+      'UPDATE Adminet SET refresh_token = ?, refresh_token_expiry = ? WHERE admin_id = ?',
+      [authService.hashRefreshToken(newRefreshToken), newRefreshExpiry, a.admin_id]
+    );
+
+    res.cookie(COOKIE_NAME, newRefreshToken, cookieOpts());
+    return res.json({ token });
+  } catch (err) {
+    console.error('[AdminAuth] Refresh error:', err.message);
+    return res.status(500).json({ error: 'Token refresh failed.' });
+  }
+};
+
+// ── POST /api/admin/auth/logout ───────────────────────────────────────────────
+
+exports.logout = async (req, res) => {
+  const refresh_token = req.cookies?.[COOKIE_NAME];
+  if (refresh_token) {
+    await db.query(
+      'UPDATE Adminet SET refresh_token = NULL, refresh_token_expiry = NULL WHERE refresh_token = ?',
+      [authService.hashRefreshToken(refresh_token)]
+    ).catch(() => {});
+  }
+  res.clearCookie(COOKIE_NAME, { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'strict', path: '/' });
+  return res.json({ message: 'Logged out successfully.' });
+};
+
 // ── POST /api/admin/auth/forgot-password ─────────────────────────────────────
 
 exports.forgotPassword = async (req, res) => {
   const email    = normalise(req.body.email);
-  const SAFE_MSG = 'If an account with that email exists, a reset link has been logged to the server console.';
+  const SAFE_MSG = 'If an account with that email exists, you will receive a password reset link shortly.';
 
   if (!email)
     return res.status(400).json({ error: 'Email is required.' });
@@ -123,13 +204,15 @@ exports.forgotPassword = async (req, res) => {
 
       await db.query(
         'UPDATE Adminet SET reset_token = ?, reset_token_expiry = ? WHERE admin_id = ?',
-        [token, expiry, rows[0].admin_id]
+        [authService.hashRefreshToken(token), expiry, rows[0].admin_id]
       );
 
       const link = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/admin/reset-password?token=${token}`;
-      console.log(`[ADMIN RESET] Link  : ${link}`);
-      console.log(`[ADMIN RESET] Expiry: ${expiry.toISOString()}`);
-      console.log('Password reset link:', link);
+      // në production zëvendëso me email — mos logo token-in kurrë në prod
+      if (process.env.NODE_ENV !== 'production') {
+        console.log(`[ADMIN RESET] Link  : ${link}`);
+        console.log(`[ADMIN RESET] Expiry: ${expiry.toISOString()}`);
+      }
     }
 
     return res.json({ message: SAFE_MSG });
@@ -154,7 +237,7 @@ exports.resetPassword = async (req, res) => {
   try {
     const [rows] = await db.query(
       'SELECT admin_id, reset_token_expiry FROM Adminet WHERE reset_token = ?',
-      [token]
+      [authService.hashRefreshToken(token)]
     );
 
     if (!rows.length)
