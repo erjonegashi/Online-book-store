@@ -46,10 +46,6 @@ app.get('/api/health', (_req, res) => {
 app.use('/api/auth',       require('./routes/auth'));
 app.use('/api/admin/auth', require('./routes/admin_auth'));
 
-// ── Admin management (protected) ─────────────────────────────────────────────
-const adminCtrl = require('./controllers/adminAuth.controller');
-app.post('/api/admin/admins', adminCtrl.createAdmin);
-
 // ── Public / user-facing routes ───────────────────────────────────────────────
 app.use('/api/librat',          require('./routes/librat'));
 app.use('/api/autoret',         require('./routes/autoret'));

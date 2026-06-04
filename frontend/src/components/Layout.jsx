@@ -4,7 +4,7 @@ import NexusLogo from './NexusLogo';
 import {
   LayoutDashboard, BookOpen, PenLine, Tag, Building2, Globe, BookMarked,
   Users, MapPin, Bell, ShoppingCart, Ticket, Zap, CreditCard,
-  Truck, Package, RotateCcw, FileText, Star, LogOut, UserPlus, KeyRound,
+  Truck, Package, RotateCcw, FileText, Star, LogOut, KeyRound,
 } from 'lucide-react';
 
 const sections = [
@@ -60,7 +60,6 @@ const sections = [
   {
     label: 'Llogaria',
     items: [
-      { to: '/admin/register',        label: 'Krijo Admin',    icon: UserPlus  },
       { to: '/admin/change-password', label: 'Ndrysho Fjalëk.', icon: KeyRound },
     ],
   },
