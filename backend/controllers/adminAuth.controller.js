@@ -15,6 +15,48 @@ const cookieOpts  = () => ({
   path:     '/',
 });
 
+// ── POST /api/admin/admins  (protected — requires adminAuth middleware) ────────
+
+exports.createAdmin = async (req, res) => {
+  const { emri, mbiemri, email, password } = req.body;
+  const emailNorm = normalise(email);
+
+  if (!emri || !mbiemri || !email || !password)
+    return res.status(400).json({ error: 'All fields are required.' });
+
+  if (!VALID_EMAIL.test(emailNorm))
+    return res.status(400).json({ error: 'Please enter a valid email address.' });
+
+  if (password.length < 6)
+    return res.status(400).json({ error: 'Password must be at least 6 characters.' });
+
+  try {
+    const hash = await authService.hashPassword(password);
+
+    const [result] = await db.query(
+      `INSERT INTO Adminet (emri, mbiemri, email, fjalekalimi_hash, roli)
+       VALUES (?, ?, ?, ?, 'admin')`,
+      [emri.trim(), mbiemri.trim(), emailNorm, hash]
+    );
+
+    return res.status(201).json({
+      user: {
+        id:      result.insertId,
+        emri:    emri.trim(),
+        mbiemri: mbiemri.trim(),
+        email:   emailNorm,
+        role:    'admin',
+      },
+    });
+
+  } catch (err) {
+    if (err.code === 'ER_DUP_ENTRY')
+      return res.status(409).json({ error: 'An admin account with this email already exists.' });
+    console.error('[AdminAuth] createAdmin error:', err.message);
+    return res.status(500).json({ error: 'Failed to create admin account. Please try again.' });
+  }
+};
+
 // ── POST /api/admin/auth/register ─────────────────────────────────────────────
 
 exports.register = async (req, res) => {
@@ -39,24 +81,7 @@ exports.register = async (req, res) => {
       [emri.trim(), mbiemri.trim(), emailNorm, hash]
     );
 
-    const token = authService.signToken({
-      id:      result.insertId,
-      email:   emailNorm,
-      emri:    emri.trim(),
-      mbiemri: mbiemri.trim(),
-      role:    'admin',
-    });
-
-    const refreshToken  = authService.generateRefreshToken();
-    const refreshExpiry = new Date(Date.now() + authService.REFRESH_TOKEN_TTL_MS);
-    await db.query(
-      'UPDATE Adminet SET refresh_token = ?, refresh_token_expiry = ? WHERE admin_id = ?',
-      [authService.hashRefreshToken(refreshToken), refreshExpiry, result.insertId]
-    );
-
-    res.cookie(COOKIE_NAME, refreshToken, cookieOpts());
     return res.status(201).json({
-      token,
       user: {
         id:      result.insertId,
         emri:    emri.trim(),

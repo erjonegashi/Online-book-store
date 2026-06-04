@@ -1,6 +1,5 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { useAuth } from '../../context/AuthContext';
+import { Link } from 'react-router-dom';
 import api from '../../api/axios';
 import { AlertTriangle, ShieldCheck, Check, X } from 'lucide-react';
 
@@ -18,8 +17,8 @@ export default function AdminRegister() {
   const [loading, setLoading] = useState(false);
   const [showPw,  setShowPw]  = useState(false);
 
-  const { login } = useAuth();
-  const navigate  = useNavigate();
+  const [success, setSuccess] = useState('');
+  const [createdEmail, setCreatedEmail] = useState('');
 
   const set = k => e => { setForm(f => ({ ...f, [k]: e.target.value })); setError(''); };
 
@@ -43,9 +42,10 @@ export default function AdminRegister() {
     setLoading(true);
     try {
       const { confirmPassword, ...payload } = form;
-      const { data } = await api.post('/admin/auth/register', payload);
-      login(data.user, data.token);
-      navigate('/admin');
+      await api.post('/admin/auth/register', payload);
+      setCreatedEmail(form.email.toLowerCase().trim());
+      setSuccess(`Admin account created successfully.`);
+      setForm({ emri: '', mbiemri: '', email: '', password: '', confirmPassword: '' });
     } catch (err) {
       const msg = err.response?.data?.error || '';
       if (err.response?.status === 409) {
@@ -86,6 +86,26 @@ export default function AdminRegister() {
             <div className="mb-5 flex items-start gap-2.5 p-3.5 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm">
               <span className="shrink-0 w-5 h-5 rounded-full bg-red-200 flex items-center justify-center text-xs font-bold mt-0.5">!</span>
               <span>{error}</span>
+            </div>
+          )}
+
+          {success && (
+            <div className="mb-5 p-3.5 bg-green-50 border border-green-200 rounded-xl text-green-700 text-sm space-y-2">
+              <div className="flex items-start gap-2.5">
+                <Check size={16} className="shrink-0 mt-0.5" />
+                <span>{success}</span>
+              </div>
+              <div className="bg-green-100 rounded-lg px-3 py-2 font-mono text-xs break-all">
+                Email: <strong>{createdEmail}</strong>
+              </div>
+              <div className="flex justify-end">
+                <Link
+                  to="/admin/login"
+                  className="text-xs font-semibold text-green-700 underline hover:text-green-900"
+                >
+                  Go to Login →
+                </Link>
+              </div>
             </div>
           )}
 
