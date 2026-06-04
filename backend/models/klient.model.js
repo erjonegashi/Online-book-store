@@ -64,6 +64,24 @@ exports.updateProfileWithHash = (id, hash, { emri, mbiemri, email, telefoni, adr
     [emri, mbiemri, email, hash, telefoni||null, adresa||null, qyteti||null, kodi_postar||null, id]
   );
 
-exports.getMyOrders = (id) =>
-  db.query('SELECT * FROM Porosite WHERE klient_id=? ORDER BY porosi_id DESC', [id])
-    .then(([rows]) => rows);
+exports.getMyOrders = async (id) => {
+  const [orders] = await db.query('SELECT * FROM Porosite WHERE klient_id=? ORDER BY porosi_id DESC', [id]);
+  if (!orders.length) return [];
+
+  const orderIds = orders.map(o => o.porosi_id);
+  const [items] = await db.query(
+    `SELECT d.*, l.titulli, l.foto_url, l.liber_id as book_id
+     FROM Detajet_Porosise d
+     LEFT JOIN Librat l ON d.liber_id = l.liber_id
+     WHERE d.porosi_id IN (?)`,
+    [orderIds]
+  );
+
+  const itemsByOrder = {};
+  for (const item of items) {
+    if (!itemsByOrder[item.porosi_id]) itemsByOrder[item.porosi_id] = [];
+    itemsByOrder[item.porosi_id].push(item);
+  }
+
+  return orders.map(o => ({ ...o, items: itemsByOrder[o.porosi_id] || [] }));
+};

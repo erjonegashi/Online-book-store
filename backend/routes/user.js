@@ -4,7 +4,6 @@ const bcrypt   = require('bcryptjs');
 const router   = require('express').Router();
 const auth     = require('../middleware/auth');
 const Klient   = require('../models/klient.model');
-const Detaji   = require('../models/detaji.model');
 const Njoftimi = require('../models/njoftimi.model');
 
 router.get('/me', auth, async (req, res) => {
@@ -12,7 +11,7 @@ router.get('/me', auth, async (req, res) => {
     const klient = await Klient.getById(req.user.id);
     if (!klient) return res.status(404).json({ error: 'User not found' });
     res.json(klient);
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) { console.error('[user/me]', err.message); res.status(500).json({ error: 'Internal server error' }); }
 });
 
 router.put('/me', auth, async (req, res) => {
@@ -35,31 +34,28 @@ router.put('/me', auth, async (req, res) => {
     res.json({ message: 'Profile updated' });
   } catch (err) {
     if (err.code === 'ER_DUP_ENTRY') return res.status(409).json({ error: 'Email is already in use' });
-    res.status(500).json({ error: err.message });
+    console.error('[user/me PUT]', err.message);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
 router.get('/orders', auth, async (req, res) => {
   try {
-    const orders = await Klient.getMyOrders(req.user.id);
-    const ordersWithItems = await Promise.all(orders.map(async order => {
-      const items = await Detaji.getByPorosiWithDetails(order.porosi_id);
-      return { ...order, items };
-    }));
-    res.json(ordersWithItems);
-  } catch (err) { res.status(500).json({ error: err.message }); }
+    res.json(await Klient.getMyOrders(req.user.id));
+  } catch (err) { console.error('[user/orders]', err.message); res.status(500).json({ error: 'Internal server error' }); }
 });
 
 router.get('/notifications', auth, async (req, res) => {
   try { res.json(await Njoftimi.getByKlient(req.user.id)); }
-  catch (err) { res.status(500).json({ error: err.message }); }
+  catch (err) { console.error('[user/notifications]', err.message); res.status(500).json({ error: 'Internal server error' }); }
 });
 
 router.patch('/notifications/:id/read', auth, async (req, res) => {
   try {
-    await Njoftimi.markRead(req.params.id);
+    const updated = await Njoftimi.markReadForUser(req.params.id, req.user.id);
+    if (!updated) return res.status(404).json({ error: 'Njoftimi nuk u gjet' });
     res.json({ message: 'Njoftimi u shënua si i lexuar' });
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) { console.error('[notifications/read]', err.message); res.status(500).json({ error: 'Internal server error' }); }
 });
 
 module.exports = router;

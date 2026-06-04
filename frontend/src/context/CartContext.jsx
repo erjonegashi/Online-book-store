@@ -28,7 +28,10 @@ export function CartProvider({ children }) {
 
   const updateQty = (liber_id, qty) => {
     if (qty < 1) { removeFromCart(liber_id); return; }
-    setItems(prev => prev.map(i => i.liber_id === liber_id ? { ...i, qty } : i));
+    setItems(prev => prev.map(i => {
+      if (i.liber_id !== liber_id) return i;
+      return { ...i, qty: Math.min(qty, Number(i.sasia_stok) || qty) };
+    }));
   };
 
   const clearCart = () => setItems([]);

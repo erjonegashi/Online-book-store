@@ -37,7 +37,6 @@ export default function Checkout() {
       const adresa_dergeses = [form.adresa, form.qyteti, form.kodi_postar].filter(Boolean).join(', ');
 
       const { data: orderData } = await userApi.post('/porosite', {
-        klient_id: user.id,
         shuma_totale: grandTotal.toFixed(2),
         kostoja_dergeses: shipping.toFixed(2),
         statusi: 'Pending',
@@ -47,14 +46,14 @@ export default function Checkout() {
 
       const porosi_id = orderData.porosi_id;
 
-      await Promise.all(items.map(item =>
-        userApi.post('/detajet', {
+      for (const item of items) {
+        await userApi.post('/detajet', {
           porosi_id,
           liber_id: item.liber_id,
           sasia: item.qty,
           cmimi_njesi: Number(item.cmimi),
-        })
-      ));
+        });
+      }
 
       clearCart();
       setSuccess(porosi_id);

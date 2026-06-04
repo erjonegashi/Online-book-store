@@ -33,5 +33,13 @@ exports.update = (id, { titulli, mesazhi, lloji, klient_id, lexuar }) =>
 exports.markRead = (id) =>
   db.query('UPDATE Njoftimet SET lexuar = 1 WHERE njoftime_id = ?', [id]);
 
+exports.markReadForUser = async (id, klient_id) => {
+  const [result] = await db.query(
+    'UPDATE Njoftimet SET lexuar = 1 WHERE njoftime_id = ? AND (klient_id = ? OR klient_id IS NULL)',
+    [id, klient_id]
+  );
+  return result.affectedRows > 0;
+};
+
 exports.remove = (id) =>
   db.query('DELETE FROM Njoftimet WHERE njoftime_id = ?', [id]);

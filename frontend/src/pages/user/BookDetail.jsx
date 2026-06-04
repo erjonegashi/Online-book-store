@@ -59,9 +59,9 @@ export default function BookDetail() {
           promises.push(userApi.get(`/autoret/${data.autori_id}`).then(r => setAuthor(r.data)).catch(() => {}));
         if (data.kategoria_id)
           promises.push(
-            userApi.get('/librat').then(r => {
-              setRelated(r.data.filter(b => b.kategoria_id === data.kategoria_id && b.liber_id !== data.liber_id).slice(0, 4));
-            }).catch(() => {})
+            userApi.get(`/librat?kategoria_id=${data.kategoria_id}&exclude_id=${data.liber_id}&limit=4`)
+              .then(r => setRelated(r.data))
+              .catch(() => {})
           );
         promises.push(
           userApi.get(`/vleresimet?liber_id=${id}`).then(r => {
@@ -79,7 +79,7 @@ export default function BookDetail() {
     if (!user || !id) return;
     userApi.get('/lista-deshirave')
       .then(({ data }) => {
-        const entry = data.find(d => String(d.liber_id) === String(id) && String(d.klient_id) === String(user.id));
+        const entry = data.find(d => String(d.liber_id) === String(id));
         if (entry) { setInWishlist(true); setWishId(entry.deshire_id); }
       })
       .catch(() => {});
@@ -103,7 +103,7 @@ export default function BookDetail() {
         await userApi.delete(`/lista-deshirave/${wishId}`);
         setInWishlist(false); setWishId(null);
       } else {
-        const { data } = await userApi.post('/lista-deshirave', { klient_id: user.id, liber_id: id });
+        const { data } = await userApi.post('/lista-deshirave', { liber_id: id });
         setInWishlist(true); setWishId(data.deshire_id);
       }
     } catch { /* ignore */ }

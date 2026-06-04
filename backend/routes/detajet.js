@@ -1,15 +1,16 @@
 'use strict';
 
-const router = require('express').Router();
-const Detaji = require('../models/detaji.model');
-const auth   = require('../middleware/auth');
+const router    = require('express').Router();
+const Detaji    = require('../models/detaji.model');
+const auth      = require('../middleware/auth');
+const adminAuth = require('../middleware/adminAuth');
 
-router.get('/', async (_req, res) => {
+router.get('/', adminAuth, async (_req, res) => {
   try { res.json(await Detaji.getAll()); }
   catch (err) { console.error(err); res.status(500).json({ error: 'Kërkesa dështoi. Provo përsëri.' }); }
 });
 
-router.get('/porosi/:porosi_id', async (req, res) => {
+router.get('/porosi/:porosi_id', auth, async (req, res) => {
   try { res.json(await Detaji.getByPorosi(req.params.porosi_id)); }
   catch (err) { console.error(err); res.status(500).json({ error: 'Kërkesa dështoi. Provo përsëri.' }); }
 });
@@ -29,14 +30,14 @@ router.post('/', auth, async (req, res) => {
   }
 });
 
-router.put('/:id', async (req, res) => {
+router.put('/:id', adminAuth, async (req, res) => {
   try {
     await Detaji.update(req.params.id, req.body);
     res.json({ message: 'Detaji u azhurnua' });
   } catch (err) { console.error(err); res.status(500).json({ error: 'Kërkesa dështoi. Provo përsëri.' }); }
 });
 
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', adminAuth, async (req, res) => {
   try {
     await Detaji.remove(req.params.id);
     res.json({ message: 'Detaji u fshi' });

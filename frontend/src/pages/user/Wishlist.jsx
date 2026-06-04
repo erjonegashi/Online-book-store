@@ -22,9 +22,8 @@ export default function Wishlist() {
   const fetchWishlist = async () => {
     setLoading(true);
     try {
-      const { data } = await userAxios.get(`/lista-deshirave?klient_id=${user.id}`);
-      const mine = data.filter(d => String(d.klient_id) === String(user.id));
-      setItems(mine);
+      const { data } = await userAxios.get('/lista-deshirave');
+      setItems(data);
     } catch {
       setItems([]);
     } finally {

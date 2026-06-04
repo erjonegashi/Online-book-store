@@ -4,7 +4,8 @@ const Libri = require('../models/libri.model');
 
 exports.getAll = async (req, res) => {
   try {
-    const librat = await Libri.getAll(req.query.search);
+    const { search, kategoria_id, exclude_id, limit } = req.query;
+    const librat = await Libri.getAll(search, { kategoria_id, exclude_id, limit });
     res.json(librat);
   } catch (err) {
     console.error('[LibriCtrl] getAll:', err.message);

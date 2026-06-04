@@ -14,13 +14,14 @@ exports.getAll = async (req, res) => {
 };
 
 exports.create = async (req, res) => {
-  const { liber_id, klient_id, nota } = req.body;
-  if (!liber_id || !klient_id || !nota)
+  const { liber_id, nota } = req.body;
+  if (!liber_id || !nota)
     return res.status(400).json({ error: 'Fushat e detyrueshme mungojnë' });
   if (nota < 1 || nota > 5)
     return res.status(400).json({ error: 'Nota duhet të jetë ndërmjet 1 dhe 5' });
   try {
-    const vleresim_id = await Vleresimi.create(req.body);
+    // klient_id vjen nga JWT — nuk pranohet nga body
+    const vleresim_id = await Vleresimi.create({ ...req.body, klient_id: req.user.id });
     res.status(201).json({ vleresim_id });
   } catch (err) {
     console.error('[VleresimiCtrl] create:', err.message);

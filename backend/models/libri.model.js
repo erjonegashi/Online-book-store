@@ -10,15 +10,23 @@ const SELECT = `
   LEFT JOIN Autoret    a ON l.autori_id    = a.autori_id
   LEFT JOIN Kategorite k ON l.kategoria_id = k.kategori_id`;
 
-exports.getAll = (search) => {
+exports.getAll = (search, { kategoria_id, exclude_id, limit } = {}) => {
   let sql = SELECT;
   const params = [];
+  const conditions = [];
+
   if (search && search.trim()) {
     const term = `%${search.trim()}%`;
-    sql += ` WHERE l.titulli LIKE ? OR CONCAT(a.emri,' ',a.mbiemri) LIKE ? OR k.emri LIKE ?`;
+    conditions.push(`(l.titulli LIKE ? OR CONCAT(a.emri,' ',a.mbiemri) LIKE ? OR k.emri LIKE ?)`);
     params.push(term, term, term);
   }
+  if (kategoria_id) { conditions.push('l.kategoria_id = ?'); params.push(kategoria_id); }
+  if (exclude_id)   { conditions.push('l.liber_id != ?');    params.push(exclude_id); }
+
+  if (conditions.length) sql += ' WHERE ' + conditions.join(' AND ');
   sql += ' ORDER BY l.liber_id DESC';
+  if (limit) { sql += ' LIMIT ?'; params.push(Number(limit)); }
+
   return db.query(sql, params).then(([rows]) => rows);
 };
 
