@@ -4,7 +4,6 @@ const router         = require('express').Router();
 const auth           = require('../middleware/auth');
 const ListaDeshirave = require('../models/lista_deshirave.model');
 
-// kthen vetëm wishlist-in e userit të autentikuar
 router.get('/', auth, async (req, res) => {
   try { res.json(await ListaDeshirave.getByKlient(req.user.id)); }
   catch (err) { console.error(err); res.status(500).json({ error: 'Kërkesa dështoi. Provo përsëri.' }); }
@@ -18,7 +17,6 @@ router.get('/:id', async (req, res) => {
   } catch (err) { console.error(err); res.status(500).json({ error: 'Kërkesa dështoi. Provo përsëri.' }); }
 });
 
-// të gjitha mutacionet kërkojnë autentikim
 router.post('/', auth, async (req, res) => {
   const { liber_id } = req.body;
   // klient_id merret nga JWT — jo nga body (parandalon privilege escalation)

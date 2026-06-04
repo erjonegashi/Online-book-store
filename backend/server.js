@@ -26,7 +26,6 @@ app.use(cookieParser());
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
-// global fallback limiter — parandalon flood mbi çdo endpoint
 app.use(rateLimit({
   windowMs:        15 * 60 * 1000,
   max:             500,
@@ -88,7 +87,6 @@ async function runMigrations() {
 
   await applyMigrations(db);
 
-  // Seed default admin account if the table is empty after migrations
   const [[{ cnt }]] = await db.query('SELECT COUNT(*) AS cnt FROM Adminet');
   if (cnt === 0) {
     const seedPw = process.env.ADMIN_SEED_PASSWORD;

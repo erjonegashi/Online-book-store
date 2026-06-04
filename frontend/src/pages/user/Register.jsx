@@ -266,5 +266,4 @@ export default function Register() {
     </div>
   );
 }
-//register component
 

@@ -16,8 +16,6 @@ const cookieOpts  = () => ({
   path:     '/',
 });
 
-// ── POST /api/auth/register ───────────────────────────────────────────────────
-
 exports.register = async (req, res) => {
   const { emri, mbiemri, email, password, telefoni, adresa, qyteti, kodi_postar } = req.body;
   const emailNorm = normalise(email);
@@ -68,8 +66,6 @@ exports.register = async (req, res) => {
   }
 };
 
-// ── POST /api/auth/login ──────────────────────────────────────────────────────
-
 exports.login = async (req, res) => {
   const { email, password } = req.body;
 
@@ -109,8 +105,6 @@ exports.login = async (req, res) => {
   }
 };
 
-// ── POST /api/user/auth/forgot-password ──────────────────────────────────────
-
 exports.forgotPassword = async (req, res) => {
   const email    = normalise(req.body.email);
   const SAFE_MSG = 'If an account with that email exists, you will receive a password reset link shortly.';
@@ -123,7 +117,7 @@ exports.forgotPassword = async (req, res) => {
 
     if (rows.length) {
       const token  = authService.generateToken();
-      const expiry = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
+      const expiry = new Date(Date.now() + 15 * 60 * 1000);
 
       await db.query(
         'UPDATE Klientet SET reset_token = ?, reset_token_expiry = ? WHERE klient_id = ?',
@@ -145,8 +139,6 @@ exports.forgotPassword = async (req, res) => {
     return res.status(500).json({ error: 'Request failed. Please try again.' });
   }
 };
-
-// ── PUT /api/user/auth/reset-password ─────────────────────────────────────────
 
 exports.resetPassword = async (req, res) => {
   const { token, newPassword } = req.body;
@@ -184,8 +176,6 @@ exports.resetPassword = async (req, res) => {
   }
 };
 
-// ── POST /api/auth/refresh ────────────────────────────────────────────────────
-
 exports.refresh = async (req, res) => {
   const refresh_token = req.cookies?.[COOKIE_NAME];
   if (!refresh_token)
@@ -210,7 +200,6 @@ exports.refresh = async (req, res) => {
       emri: k.emri, mbiemri: k.mbiemri, role: 'user',
     });
 
-    // rotate refresh token
     const newRefreshToken  = authService.generateRefreshToken();
     const newRefreshExpiry = new Date(Date.now() + authService.REFRESH_TOKEN_TTL_MS);
     await db.query(
@@ -226,8 +215,6 @@ exports.refresh = async (req, res) => {
   }
 };
 
-// ── POST /api/auth/logout ─────────────────────────────────────────────────────
-
 exports.logout = async (req, res) => {
   const refresh_token = req.cookies?.[COOKIE_NAME];
   if (refresh_token) {
@@ -239,7 +226,5 @@ exports.logout = async (req, res) => {
   res.clearCookie(COOKIE_NAME, { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'strict', path: '/' });
   return res.json({ message: 'Logged out successfully.' });
 };
-
-// ── GET /api/auth/me ──────────────────────────────────────────────────────────
 
 exports.me = (req, res) => res.json({ user: req.user });

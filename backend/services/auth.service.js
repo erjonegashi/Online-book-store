@@ -15,8 +15,27 @@ if (process.env.JWT_SECRET.length < JWT_MIN_SECRET_LENGTH) {
   process.exit(1);
 }
 
+// Reject placeholder and low-entropy values
+const JWT_WEAK_PATTERNS = [
+  /placeholder/i,
+  /change[_-]?me/i,
+  /your[_-]?secret/i,
+  /example/i,
+  /random[_-]?string/i,
+  /make[_-]?it[_-]?long/i,
+  /replace[_-]?me/i,
+  /jwt[_-]?secret/i,
+  /test[_-]?secret/i,
+  /^[a-zA-Z_]+$/,   // purely alphabetic phrase — no digits or special chars
+];
+if (JWT_WEAK_PATTERNS.some(p => p.test(process.env.JWT_SECRET))) {
+  console.error('[FATAL] JWT_SECRET looks like a placeholder or weak value.');
+  console.error('[FATAL] Generate a real secret: node -e "console.log(require(\'crypto\').randomBytes(48).toString(\'base64\'))"');
+  process.exit(1);
+}
+
 const jwtSecret = () => process.env.JWT_SECRET;
-const REFRESH_TOKEN_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+const REFRESH_TOKEN_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
 // SHA-256 hash — ruaj në DB, jo plaintext
 const hashRefreshToken = token =>

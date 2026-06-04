@@ -1,4 +1,5 @@
 import { createContext, useContext, useState } from 'react';
+import { setUserToken } from '../api/userAxios';
 
 const UserAuthContext = createContext(null);
 
@@ -13,7 +14,7 @@ export function UserAuthProvider({ children }) {
 
   const login = (userData, token) => {
     const u = { ...userData, role: 'user' };
-    localStorage.setItem('user_token', token);
+    setUserToken(token);
     localStorage.setItem('user_data', JSON.stringify(u));
     setUser(u);
   };
@@ -24,7 +25,7 @@ export function UserAuthProvider({ children }) {
       `${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/auth/logout`,
       { method: 'POST', credentials: 'include' }
     ).catch(() => {});
-    localStorage.removeItem('user_token');
+    setUserToken(null);
     localStorage.removeItem('user_data');
     setUser(null);
   };

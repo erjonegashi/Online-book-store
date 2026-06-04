@@ -40,7 +40,6 @@ export default function BookDetail() {
   const [wishId,     setWishId]     = useState(null);
   const [wishLoading,setWishLoading]= useState(false);
 
-  // Review form
   const [reviewNota,    setReviewNota]    = useState(5);
   const [reviewKoment,  setReviewKoment]  = useState('');
   const [submitting,    setSubmitting]    = useState(false);
